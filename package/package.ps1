@@ -20,12 +20,9 @@
 #>
 param(
     [Parameter(Mandatory=$true)]
-    [string]$SubstratePath,
-
-    [Parameter(Mandatory=$true)]
     [string]$VagrantRevision,
 
-    [string]$VagrantSourceBaseURL="https://github.com/mitchellh/vagrant/archive/",
+    [string]$VagrantSourceBaseURL="https://github.com/chrisroberts/vagrant/archive/",
 
     [string]$SignKey="",
     [string]$SignKeyPassword="",
@@ -67,12 +64,6 @@ function Expand-ZipFile($file, $destination) {
     }
 }
 
-#--------------------------------------------------------------------
-# Extract Substrate
-#--------------------------------------------------------------------
-# We need the full path to the file
-$SubstratePath = Resolve-Path $SubstratePath
-
 # We need to create a temporary configuration directory
 $SubstrateTmpDir = [System.IO.Path]::GetTempPath()
 If ($BuildStyle -eq "ephemeral") {
@@ -96,19 +87,45 @@ If ($BuildStyle -eq "ephemeral") {
 
 Write-Host "Substrate temp dir: $($SubstrateTmpDir)"
 
-# Unzip
-If ($UseCache -eq $false) {
-  Write-Host "Expanding substrate..."
-  Expand-ZipFile -file $SubstratePath -destination $SubstrateTmpDir
-} Else {
-  Write-Host "Using cached substrate"
+$scoop = Get-Item scoop -ErrorAction SilentlyContinue
+if ($scoop -eq $false) {
+  Write-Host "Installing scoop to generate substrate"
+  iex (new-object net.webclient).downloadstring('https://get.scoop.sh')
 }
+
+Write-Host "Fetching substrate"
+
+[System.IO.Directory]::CreateDirectory("$($SubstrateTmpDir)\embedded")  | Out-Null
+
+$InitialPath = $env:PATH
+
+$env:SubstrateTmpDir = $SubstrateTmpDir
+powershell {
+  $env:SCOOP_GLOBAL = "$($env:SubstrateTmpDir)\embedded"
+
+  scoop install -g gow curl openssh rsync
+  scoop install -g ruby.json
+}
+
+Write-Host "Reseting PATH to remove scoop install adjustments"
+$env:PATH = $InitialPath
+setx PATH $InitialPath /m
+
+Write-Host "Setting up local substrate"
+
+$files = Get-ChildItem "$($SubstrateTmpDir)\embedded\shims\*.shim"
+foreach ($file in $files){
+  $content = [System.IO.File]::ReadAllText($file).Replace("$($SubstrateTmpDir)\embedded", "..")
+  [System.IO.File]::WriteAllText($file, $content)
+}
+
+Rename-Item "$($SubstrateTmpDir)\embedded\shims" bin
 
 # Set the full path to the substrate
 $SubstrateDir = "$($SubstrateTmpDir)"
 
 #--------------------------------------------------------------------
-# Install Vagrant
+# Install Vagrant and accessories
 #--------------------------------------------------------------------
 $VagrantTmpDir = [System.IO.Path]::GetTempPath()
 if ($BuildStyle -eq "ephemeral" ) {
@@ -135,8 +152,42 @@ Write-Host "Vagrant temp dir: $($VagrantTmpDir)"
 $VagrantSourceURL = "$($VagrantSourceBaseURL)/$($VagrantRevision).zip"
 $VagrantDest      = "$($VagrantTmpDir)\vagrant.zip"
 
+$go = Get-Item go -ErrorAction SilentlyContinue
+
+If ($go -eq $false) {
+  Write-Host "Install golang for launcher compliation"
+  $GoLangUrl = "https://storage.googleapis.com/golang/go1.7.1.windows-amd64.msi"
+  $GoLangDest = "$($VagrantTmpDir)\golang.msi"
+  (New-Object System.Net.WebClient).DownloadFile($GoLangUrl, $GoLangDest)
+
+  msiexec /i $GoLangDest /passive
+}
+
+Write-Host "Building vagrant launcher"
+
+[System.IO.Directory]::CreateDirectory("$($VagrantTmpDir)\gopath") | Out-Null
+$env:GOPATH = "$($VagrantTmpDir)\gopath"
+
+Write-Host "Install osext dependency"
+$GoDepUrl = "https://github.com/mitchellh/osext/archive/master.zip"
+$GoDepDest = "$($VagrantTmpDir)\osext.zip"
+(New-Object System.Net.WebClient).DownloadFile($GoDepUrl, $GoDepDest)
+$OsextDir = "$($VagrantTmpDir)\osext"
+[System.IO.Directory]::CreateDirectory($OsextDir) | Out-Null
+[System.IO.Directory]::CreateDirectory("$($env:GOPATH)\src\github.com\mitchellh") | Out-Null
+Expand-Zipfile -file $GoDepDest -destination $OsextDir
+Move-Item "$OsextDir\osext-master" -Destination "$($env:GOPATH)\src\github.com\mitchellh\osext"
+
+Push-Location "..\substrate\launcher"
+[System.IO.Directory]::CreateDirectory("$($SubstrateTmpDir)\bin") | Out-Null
+Write-Host "Build the launcher"
+go build main.go
+Write-Host "Install launcher into substrate"
+Move-Item main.exe "$($SubstrateTmpDir)\bin\vagrant.exe"
+Pop-Location
+
 # Download
-If ($UseCache -eq $false) {
+If ($UseCache -eq $false -Or $VagrantTmpDirectory.count -eq 0) {
   Write-Host "Downloading Vagrant: $($VagrantRevision)"
   $client = New-Object System.Net.WebClient
   $client.DownloadFile($VagrantSourceURL, $VagrantDest)
@@ -155,7 +206,7 @@ $VagrantSourceDir = "$($VagrantTmpDir)\vagrant-$($VagrantRevision)"
 If ($UseCache -eq $false) {
   Write-Host "Building Vagrant Gem"
   Push-Location $VagrantSourceDir
-  &"$($SubstrateDir)\embedded\bin\gem.bat" build vagrant.gemspec
+  &"$($SubstrateDir)\embedded\bin\gem.cmd" build vagrant.gemspec
   Copy-Item vagrant-*.gem -Destination vagrant.gem
   Pop-Location
 } Else {
@@ -187,15 +238,23 @@ if ($UseCache -eq $false) {
       $env:LDFLAGS  = "-L$($EmbeddedDir)\lib"
       $env:Path     ="$($EmbeddedDir)\bin;$($env:Path)"
       $env:SSL_CERT_FILE = "$($EmbeddedDir)\cacert.pem"
-      &"$($EmbeddedDir)\bin\gem.bat" install vagrant.gem --no-ri --no-rdoc
+      &"$($EmbeddedDir)\bin\gem.cmd" install vagrant.gem --no-ri --no-rdoc
 
       # Extensions
-      &"$($EmbeddedDir)\bin\gem.bat" install vagrant-share --no-ri --no-rdoc --source "http://gems.hashicorp.com"
+      &"$($EmbeddedDir)\bin\gem.cmd" install vagrant-share --no-ri --no-rdoc --source "http://gems.hashicorp.com"
   }
   Remove-Item Env:SubstrateDir
   Remove-Item Env:VagrantSourceDir
 } Else {
   Write-Host "Using cached installation of Vagrant Gem"
+}
+
+Write-Host "Cleaning gem stub paths"
+
+$files = Get-ChildItem "$($SubstrateTmpDir)\embedded\gems\bin\*"
+foreach ($file in $files){
+  $content = [System.IO.File]::ReadAllText($file).Replace("$($SubstrateTmpDir)\embedded", "..\..\")
+  [System.IO.File]::WriteAllText($file, $content)
 }
 
 #--------------------------------------------------------------------
@@ -417,6 +476,10 @@ Write-Host "Running heat.exe"
     -nologo `
     -srd `
     -gg `
+    -v `
+    -scom `
+    -sreg `
+    -sfrag `
     -cg VagrantDir `
     -dr INSTALLDIR `
     -var 'var.VagrantSourceDir' `
