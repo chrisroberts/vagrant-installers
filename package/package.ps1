@@ -253,7 +253,9 @@ Write-Host "Cleaning gem stub paths"
 
 $files = Get-ChildItem "$($SubstrateTmpDir)\embedded\gems\bin\*"
 foreach ($file in $files){
-  $content = [System.IO.File]::ReadAllText($file).Replace("$($SubstrateTmpDir)\embedded", "..\..\")
+  $content = [System.IO.File]::ReadAllText($file).Replace("$($SubstrateTmpDir)\embedded", "..\..")
+  $ForwardPath = "$($SubstrateTmpDir)\embedded".Replace("\", "/")
+  $content = $content.Replace($ForwardPath, "../..")
   [System.IO.File]::WriteAllText($file, $content)
 }
 
