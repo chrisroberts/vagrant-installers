@@ -28,9 +28,9 @@ echo "Darwin staging dir: ${STAGING_DIR}"
 #-------------------------------------------------------------------------
 echo "Copying installer resources..."
 mkdir -p ${STAGING_DIR}/resources
-cp ${DIR}/darwin/background.png ${STAGING_DIR}/background.png
-cp ${DIR}/darwin/welcome.html ${STAGING_DIR}/welcome.html
-cp ${DIR}/darwin/license.html ${STAGING_DIR}/license.html
+cp "${DIR}/darwin/background.png" ${STAGING_DIR}/background.png
+cp "${DIR}/darwin/welcome.html" ${STAGING_DIR}/welcome.html
+cp "${DIR}/darwin/license.html" ${STAGING_DIR}/license.html
 
 #-------------------------------------------------------------------------
 # Scripts
@@ -127,10 +127,10 @@ productbuild \
 # Stage the files
 mkdir -p ${STAGING_DIR}/dmg
 cp ${STAGING_DIR}/Vagrant.pkg ${STAGING_DIR}/dmg/Vagrant.pkg
-cp ${DIR}/darwin/uninstall.tool ${STAGING_DIR}/dmg/uninstall.tool
+cp "${DIR}/darwin/uninstall.tool" ${STAGING_DIR}/dmg/uninstall.tool
 chmod +x ${STAGING_DIR}/dmg/uninstall.tool
 mkdir ${STAGING_DIR}/dmg/.support
-cp ${DIR}/darwin/background_installer.png ${STAGING_DIR}/dmg/.support/background.png
+cp "${DIR}/darwin/background_installer.png" ${STAGING_DIR}/dmg/.support/background.png
 
 # Create the temporary DMG
 echo "Creating temporary DMG..."
