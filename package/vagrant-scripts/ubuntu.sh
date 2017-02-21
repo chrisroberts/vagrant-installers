@@ -11,4 +11,4 @@ ln -s /var/lib/gems/1.8/bin/puppet /usr/local/bin/puppet
 mkdir -p /vagrant/substrate-assets
 chmod 755 /vagrant/package/package.sh
 
-/vagrant/package/package.sh /vagrant/substrate-assets/substrate_ubuntu_$(uname -p).zip master
+/vagrant/package/package.sh /vagrant/substrate-assets/substrate_ubuntu_$(uname -m).zip master

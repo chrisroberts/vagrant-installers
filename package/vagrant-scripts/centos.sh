@@ -14,4 +14,4 @@ yum install -y puppet
 mkdir -p /vagrant/substrate-assets
 chmod 755 /vagrant/package/package.sh
 
-/vagrant/package/package.sh /vagrant/substrate-assets/substrate_centos_$(uname -p).zip master
+/vagrant/package/package.sh /vagrant/substrate-assets/substrate_centos_$(uname -m).zip master
