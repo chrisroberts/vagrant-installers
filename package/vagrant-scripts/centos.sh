@@ -1,6 +1,6 @@
 #!/bin/sh
 
-yum install -y nc curl zip
+yum install -y nc curl zip unzip
 
 # if the proxy is around, use it
 nc -z -w3 192.168.1.1 8123 && export http_proxy="http://192.168.1.1:8123"
