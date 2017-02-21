@@ -97,28 +97,38 @@ if(!$WixHeat){
   Write-Host "Installing Wix toolset."
   $WixProcess = Start-Process -FilePath $WixDestination -ArgumentList $WixInstallArgs -Wait -PassThru
 
-  Write-Host "!!!!!!!!!!!!!!!!!!!!! NOTICE !!!!!!!!!!!!!!!!!!!!!"
-  Write-Host "! This box is now configured to package Vagrant  !"
-  Write-Host "! A reboot is required before proceeding. Please !"
-  Write-Host "! reload this instance and re-provision to build !"
-  Write-Host "! the Windows package                            !"
-  Write-Host "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+#  Write-Host "!!!!!!!!!!!!!!!!!!!!! NOTICE !!!!!!!!!!!!!!!!!!!!!"
+#  Write-Host "! This box is now configured to package Vagrant  !"
+#  Write-Host "! A reboot is required before proceeding. Please !"
+#  Write-Host "! reload this instance and re-provision to build !"
+#  Write-Host "! the Windows package                            !"
+#  Write-Host "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 # } else {
+}
+[System.IO.Directory]::CreateDirectory("C:\vagrant\substrate-assets") | Out-Null
+[System.IO.Directory]::CreateDirectory("C:\vagrant\pkg") | Out-Null
 
-  [System.IO.Directory]::CreateDirectory("C:\vagrant\substrate-assets") | Out-Null
-  [System.IO.Directory]::CreateDirectory("C:\vagrant\pkg") | Out-Null
+$SubstratePath = "C:\vagrant\substrate-assets\substrate_windows_x64.zip"
+$SubstrateExists = Test-Path -LiteralPath $SubstratePath
 
-  $SubstratePath = "C:\vagrant\substrate-assets\substrate_windows_x64.zip"
-  $SubstrateExists = Test-Path -LiteralPath $SubstratePath
+if(!$SubstrateExists){
+  Write-Host "Downloading windows substrate for package build."
+  $WebClient.DownloadFile($SubstrateURL, $SubstrateDestination)
+  Move-Item $SubstrateDestination, $SubstratePath
+}
+Write-Host "Starting package build"
+Set-Location -Path C:\vagrant\pkg
 
-  if(!$SubstrateExists){
-    Write-Host "Downloading windows substrate for package build."
-    $WebClient.DownloadFile($SubstrateURL, $SubstrateDestination)
-    Move-Item $SubstrateDestination, $SubstratePath
+$SignKeyPath = "C:\vagrant\CodeSigning.p12"
+$SignKeyExists = Test-Path -LiteralPath $SignKeyPath
+if($SignKeyExists){
+  if(!$env.SignKeyPassword){
+    Write-Host "Error: No password provided for code signing key!"
+    exit 1
   }
-  Write-Host "Starting package build"
-  Set-Location -Path C:\vagrant\pkg
   savepowershellfromitself
-
+  Invoke-Expression "C:\vagrant\package\package.ps1 -SubstratePath ${SubstratePath} -VagrantRevision master -SignKey ${SignKeyPath} -SignKeyPassword ${env.SignKeyPassword}"
+} else {
+  savepowershellfromitself
   Invoke-Expression "C:\vagrant\package\package.ps1 -SubstratePath ${SubstratePath} -VagrantRevision master"
 }
