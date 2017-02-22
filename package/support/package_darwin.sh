@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -ex
 
 # Verify arguments
 if [ "$#" -ne "2" ]; then
@@ -113,14 +113,23 @@ EOF
 
 # Build the actual installer.
 echo "Building Vagrant.pkg..."
-productbuild \
-    --distribution ${STAGING_DIR}/vagrant.dist \
-    --resources ${STAGING_DIR}/resources \
-    --package-path ${STAGING_DIR} \
-    --timestamp=none \
-    --sign "Developer ID Installer: Mitchell Hashimoto" \
-    ${STAGING_DIR}/Vagrant.pkg
-
+if [ "${DISABLE_DMG_SIGN}" == "1" ]
+then
+    productbuild \
+        --distribution ${STAGING_DIR}/vagrant.dist \
+        --resources ${STAGING_DIR}/resources \
+        --package-path ${STAGING_DIR} \
+        --timestamp=none \
+        ${STAGING_DIR}/Vagrant.pkg
+else
+    productbuild \
+        --distribution ${STAGING_DIR}/vagrant.dist \
+        --resources ${STAGING_DIR}/resources \
+        --package-path ${STAGING_DIR} \
+        --timestamp=none \
+        --sign "Developer ID Installer: Mitchell Hashimoto" \
+        ${STAGING_DIR}/Vagrant.pkg
+fi
 #-------------------------------------------------------------------------
 # DMG
 #-------------------------------------------------------------------------
