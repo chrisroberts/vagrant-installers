@@ -11,6 +11,7 @@ attempts=0
 while [ "${result}" -ne "0" ]
 do
     TRAVIS=1 su vagrant -l -c 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
+    result=$?
     attempts=$(expr $attempts + 1)
     if [ $attempts -gt 5 ]
     then
