@@ -33,7 +33,7 @@ unzip substrate.zip
 popd
 rm -rf /opt/vagrant
 mkdir -p /opt/vagrant
-mv ${SUBSTRATE_TMP_DIR}/* /opt/vagrant/
+mv ${SUBSTRATE_TMP_DIR}/substrate/* /opt/vagrant/
 SUBSTRATE_DIR="/opt/vagrant"
 
 # Install Vagrant
