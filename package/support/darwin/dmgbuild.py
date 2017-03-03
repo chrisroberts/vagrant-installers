@@ -5,10 +5,13 @@ import os.path
 
 # Default contents
 
-volume_name = 'Vagrant'
 format = defines.get('format', 'UDZO')
 size = defines.get('size', '102400k')
-files = defines.get('srcfolder')
+files_dir = defines.get('srcfolder', '.')
+files = [
+    "{}/vagrant.pkg".format(files_dir),
+    "{}/uninstall.tool".format(files_dir)
+]
 
 # Set the background
 
@@ -31,7 +34,13 @@ default_view = 'icon-view'
 
 arrange_by = None
 icon_size = 72
+grid_offset = (0, 0)
+grid_spacing = 100
+scroll_position = (0, 0)
+label_pos = 'bottom'
+text_size = 14
+show_icon_preview = False
 icon_locations = {
-    'Vagrant.pkg': (420, 60),
+    'vagrant.pkg': (420, 60),
     'uninstall.tool': (420, 220)
 }
