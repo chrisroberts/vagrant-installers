@@ -16,7 +16,7 @@ gem install fpm -v '~> 0.4.0' --no-ri --no-rdoc
 chmod 755 /vagrant/package/package.sh
 
 TRAVIS=1 su vagrant -l -c 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
-su vagrant -l -c brew install "${DIR}/dmgbuild.rb"
+su vagrant -l -c "brew install /vagrant/package/vagrant-scripts/dmgbuild.rb"
 
 /vagrant/package/package.sh /vagrant/substrate-assets/substrate_darwin_x86_64.zip master
 

@@ -191,11 +191,9 @@ mkdir -p ${STAGING_DIR}/dmg
 cp ${STAGING_DIR}/Vagrant.pkg ${STAGING_DIR}/dmg/Vagrant.pkg
 cp "${DIR}/darwin/uninstall.tool" ${STAGING_DIR}/dmg/uninstall.tool
 chmod +x ${STAGING_DIR}/dmg/uninstall.tool
-#mkdir ${STAGING_DIR}/dmg/.support
-#cp "${DIR}/darwin/background_installer.png" ${STAGING_DIR}/dmg/.support/background.png
 
 echo "Creating DMG"
-dmgbuild -s "${DIR}/darwin/dmgbuild.py" -D srcfolder="${STAGING_DIR}/dmg" -D backgroundimg="${DIR}/darwin/background_installer" "${OUTPUT_PATH}"
+dmgbuild -s "${DIR}/darwin/dmgbuild.py" -D srcfolder="${STAGING_DIR}/dmg" -D backgroundimg="${DIR}/darwin/background_installer.png" Vagrant "${OUTPUT_PATH}"
 
 if [[ "${SIGN_PKG}" -ne "1" ]]
 then
