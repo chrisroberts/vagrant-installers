@@ -1,0 +1,10 @@
+$zipPath = "<%= @ruby_installer_zip_path %>"
+$destination = "<%= @ri_install_dir %>"
+
+New-Item -ItemType Directory -Force -Path $destination
+
+$shell = New-Object -ComObject "Shell.Application"
+$zip = $shell.NameSpace($zipPath)
+foreach($item in $zip.items()) {
+    $shell.Namespace($destination).copyhere($item)
+}

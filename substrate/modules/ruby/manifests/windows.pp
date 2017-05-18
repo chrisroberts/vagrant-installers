@@ -6,10 +6,14 @@ class ruby::windows(
   $install_dir = undef,
   $file_cache_dir = params_lookup('file_cache_dir', 'global'),
 ) {
+  $ruby_version = "2.2.7"
   $devkit_source_url = "http://dl.bintray.com/oneclick/rubyinstaller/DevKit-mingw64-32-4.7.2-20130224-1151-sfx.exe"
   $devkit_installer_path = "${file_cache_dir}\\devkit-4.7.2-64.exe"
-  $ruby_source_url = "http://dl.bintray.com/oneclick/rubyinstaller/rubyinstaller-2.2.5.exe?direct"
-  $ruby_installer_path = "${file_cache_dir}\\ruby-2.2.5.exe"
+  $ri_install_dir = "${file_cache_dir}"
+  $ri_full_dir = "${file_cache_dir}\\rubyinstaller-master"
+  $ruby_installer_path = "${ri_full_dir}\\pkg\\rubyinstaller-${ruby_version}.exe"
+  $ruby_installer_zip = "https://github.com/oneclick/rubyinstaller/archive/master.zip"
+  $ruby_installer_zip_path = "${file_cache_dir}\\ri.zip"
 
   $extra_args = $install_dir ? {
     undef   => "",
@@ -19,16 +23,50 @@ class ruby::windows(
   #------------------------------------------------------------------
   # Ruby
   #------------------------------------------------------------------
-  download { "ruby":
-    source         => $ruby_source_url,
-    destination    => $ruby_installer_path,
+  download { "rubyinstaller":
+    source => $ruby_installer_zip,
+    destination => $ruby_installer_zip_path,
     file_cache_dir => $file_cache_dir,
+  }
+
+  powershell { "extract-rubyinstaller":
+    content => template("ruby/extract.erb"),
+    creates => "${ri_full_dir}\\rakefile.rb",
+    file_cache_dir => $file_cache_dir,
+    require => [
+      Download["rubyinstaller"],
+    ],
+  }
+
+  powershell { "set-ruby-version":
+    content => template("ruby/set-version.erb"),
+    file_cache_dir => $file_cache_dir,
+    require => Powershell["extract-rubyinstaller"],
+  }
+
+  exec { "build-ruby":
+    command => "C:\\Ruby22\\bin\\rake.bat ruby22",
+    creates => $ruby_installer_path,
+    cwd => $ri_full_dir,
+    timeout => 1200,
+    require => [
+      Powershell["extract-rubyinstaller"],
+      Powershell["set-ruby-version"],
+    ]
+  }
+
+  exec { "package-ruby":
+    command => "C:\\Ruby22\\bin\\rake.bat ruby22:package:installer",
+    creates => $ruby_installer_path,
+    cwd => $ri_full_dir,
+    environment => "NODOCS=1",
+    require => Exec["build-ruby"],
   }
 
   exec { "install-ruby":
     command => "cmd.exe /C ${ruby_installer_path} /silent${extra_args}",
     creates => "${install_dir}/bin/ruby.exe",
-    require => Download["ruby"],
+    require => Exec["package-ruby"],
   }
 
   #------------------------------------------------------------------
