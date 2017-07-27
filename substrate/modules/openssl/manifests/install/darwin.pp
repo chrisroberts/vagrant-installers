@@ -36,13 +36,9 @@ class openssl::install::darwin {
     require => Exec["copy-openssl-64"],
   }
 
-  # Note that we "install" the 64-bit version. This is just so that we
-  # can get the headers and all that properly into the final directory.
-  # We replace the libraries it would install with our own universal
-  # binaries later in the process.
   autotools { "openssl":
     configure_file     => "./Configure",
-    configure_flags    => "--prefix=${prefix} shared darwin64-x86_64-cc",
+    configure_flags    => "--prefix=${prefix} --openssldir=/opt/vagrant/embedded/ssl shared darwin64-x86_64-cc",
     configure_sentinel => "${openssl_64_path}/apps/CA.pl.bak",
     cwd                => $openssl_64_path,
     environment        => $autotools_environment,
