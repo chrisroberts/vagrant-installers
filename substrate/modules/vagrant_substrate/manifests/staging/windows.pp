@@ -370,10 +370,10 @@ class vagrant_substrate::staging::windows {
 
   # Install Win32-OpenSSH
   $winssh32_url = "https://github.com/PowerShell/Win32-OpenSSH/releases/download/v${winssh_version}/OpenSSH-Win32.zip"
-  $winssh32_path = "${cache_dir}\\winssh32.zip
+  $winssh32_path = "${cache_dir}\\winssh32.zip"
 
   $winssh64_url = "https://github.com/PowerShell/Win32-OpenSSH/releases/download/v${winssh_version}/OpenSSH-Win64.zip"
-  $winssh64_path = "${cache_dir}\\winssh64.zip
+  $winssh64_path = "${cache_dir}\\winssh64.zip"
 
   download { "winssh-32":
     source => $winssh32_url,
