@@ -46,7 +46,7 @@ class build_essential {
       $script_build_autotools = "/usr/local/bin/darwin_build_autotools"
 
       util::script { $script_build_autotools:
-        content => template("build_essential/centos_build_autotools.sh.erb"),
+        content => template("build_essential/darwin_build_autotools.sh.erb"),
       }
 
       exec { $script_build_autotools:
