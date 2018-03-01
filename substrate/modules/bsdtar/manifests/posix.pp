@@ -41,7 +41,7 @@ class bsdtar::posix {
   $real_autotools_environment = autotools_merge_environments(
     $autotools_environment, $extra_autotools_environment, $ld_path_environment)
 
-  # if $kernel == 'Darwin' {
+  if $kernel == 'Darwin' {
   #   # Make sure we have a later version of automake/autoconf
   #   homebrew::package { "automake":
   #     creates => "/usr/local/bin/automake",
@@ -55,11 +55,11 @@ class bsdtar::posix {
   #     before  => Exec["automake-libarchive"],
   #   }
 
-  #   homebrew::package { "libtool":
-  #     creates => "/usr/local/bin/glibtoolize",
-  #     before  => Exec["automake-libarchive"],
-  #   }
-  # }
+    homebrew::package { "libtool":
+      creates => "/usr/local/bin/glibtoolize",
+      before  => Exec["automake-libarchive"],
+    }
+  }
 
   #------------------------------------------------------------------
   # Download and Setup
