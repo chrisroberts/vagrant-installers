@@ -50,8 +50,6 @@ class build_essential {
       exec { $script_build_autotools:
         unless  => "test -f /usr/local/bin/automake",
         require => [
-          Package["gcc"],
-          Package["make"],
           Util::Script[$script_build_autotools],
         ],
       }
