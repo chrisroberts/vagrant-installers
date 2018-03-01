@@ -42,6 +42,21 @@ class build_essential {
       }
     }
 
+    'Darwin': {
+      util::script { $script_build_autotools:
+        content => template("build_essential/centos_build_autotools.sh.erb"),
+      }
+
+      exec { $script_build_autotools:
+        unless  => "test -f /usr/local/bin/automake",
+        require => [
+          Package["gcc"],
+          Package["make"],
+          Util::Script[$script_build_autotools],
+        ],
+      }
+    }
+
     'Ubuntu': {
       package {
         ["build-essential", "autoconf", "automake", "chrpath", "libtool"]:
