@@ -49,7 +49,8 @@ class curl::posix {
   }
 
   file { $curl_patch_file:
-    source => "puppet:///modules/curl/curl-7.59.0-file-url.patch"
+    source => "puppet:///modules/curl/curl-7.59.0-file-url.patch",
+    require => Exec["untar-curl"],
   }
 
   exec { "patch-curl":
@@ -57,7 +58,6 @@ class curl::posix {
     cwd => $source_dir_path,
     require => [
       File[$curl_patch_file],
-      Exec["untar-curl"],
     ],
   }
 
