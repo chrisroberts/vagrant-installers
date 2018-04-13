@@ -21,7 +21,6 @@ license=("MIT")
 makedepends=("${MINGW_PACKAGE_PREFIX}-gcc" "${MINGW_PACKAGE_PREFIX}-pkg-config")
 depends=("${MINGW_PACKAGE_PREFIX}-gcc-libs"
          "${MINGW_PACKAGE_PREFIX}-c-ares"
-         "${MINGW_PACKAGE_PREFIX}-brotli"
          "${MINGW_PACKAGE_PREFIX}-libidn2"
          "${MINGW_PACKAGE_PREFIX}-libmetalink"
          "${MINGW_PACKAGE_PREFIX}-libssh2"
@@ -101,8 +100,7 @@ build() {
     --enable-sspi \
     --enable-ldap \
     --enable-ldaps \
-    --with-brotli \
-    --with-ldap-lib=wldap32 \
+     --with-ldap-lib=wldap32 \
     --with-libmetalink=${MINGW_PREFIX} \
     "${_variant_config[@]}" \
     "${extra_config[@]}"
