@@ -5,7 +5,7 @@
 $Retries = 0
 $Found = $false
 
-Start-Process "c:\msys64\msys2_shell.cmd" "-mingw64 -where <%= @cache_dir %> -no-start -f bash-curl-builder.sh" -Wait -PassThru -NoNewWindow
+Start-Process "c:\msys64\msys2_shell.cmd" "-mingw64 -where <%= @cache_dir %> -no-start -f curl-bash-builder.sh" -Wait -PassThru -NoNewWindow
 Start-Sleep 5
 
 while (-not $Found) {
