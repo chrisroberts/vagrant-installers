@@ -75,9 +75,9 @@ class vagrant_substrate::staging::windows {
     require => [
       File[$curl_bash_builder],
       File[$curl_files_path],
+      Powershell["build-ruby"],
     ],
   }
-
 
   powershell { "build-substrate":
     content => template("vagrant_substrate/substrate_waiter.ps1.erb"),
