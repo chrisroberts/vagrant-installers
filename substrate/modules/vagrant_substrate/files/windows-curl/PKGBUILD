@@ -1,96 +1,121 @@
 # Maintainer: Alexey Pavlov <alexpux@gmail.com>
+_variant=-openssl
+#_variant=-winssl
+#_variant=-gnutls
 
-pkgbase=curl
-pkgname=('curl' 'libcurl' 'libcurl-devel')
+if [ "${_variant}" = "-openssl" ]; then
+  _namesuff=
+else
+  _namesuff="${_variant}"
+fi
+
+_realname=curl
+pkgbase=mingw-w64-${_realname}
+pkgname="${MINGW_PACKAGE_PREFIX}-${_realname}${_namesuff}"
 pkgver=7.59.0
-pkgrel=1
-pkgdesc="Multi-protocol file transfer utility"
-arch=('i686' 'x86_64')
-url="https://curl.haxx.se"
-license=('MIT')
-depends=('ca-certificates')
-makedepends=('heimdal-devel' 'libcrypt-devel' 'libidn2-devel' 'libmetalink-devel'
-             'libnghttp2-devel' 'libpsl-devel' 'libssh2-devel' 'openssl-devel' 'zlib-devel') #  'libcares-devel'
-options=('!libtool' 'strip' '!debug')
-source=("https://curl.haxx.se/download/${pkgname}-${pkgver}.tar.bz2"
-        curl-7.55.1-msys2.patch
-        curl-7.58.0-libpsl-static-libs.patch
-        curl-7.59.0-file-url.patch)
+pkgrel=2
+pkgdesc="Command line tool and library for transferring data with URLs. (mingw-w64)"
+arch=('any')
+url="https://curl.haxx.se/"
+license=("MIT")
+makedepends=("${MINGW_PACKAGE_PREFIX}-gcc" "${MINGW_PACKAGE_PREFIX}-pkg-config")
+depends=("${MINGW_PACKAGE_PREFIX}-gcc-libs"
+         "${MINGW_PACKAGE_PREFIX}-c-ares"
+         "${MINGW_PACKAGE_PREFIX}-brotli"
+         "${MINGW_PACKAGE_PREFIX}-libidn2"
+         "${MINGW_PACKAGE_PREFIX}-libmetalink"
+         "${MINGW_PACKAGE_PREFIX}-libssh2"
+         "${MINGW_PACKAGE_PREFIX}-zlib"
+         $([[ "$_variant" == "-openssl" ]] && echo \
+            "${MINGW_PACKAGE_PREFIX}-ca-certificates" \
+            "${MINGW_PACKAGE_PREFIX}-openssl" \
+            "${MINGW_PACKAGE_PREFIX}-nghttp2")
+         $([[ "$_variant" == "-gnutls" ]] && echo \
+            "${MINGW_PACKAGE_PREFIX}-rtmpdump" \
+            "${MINGW_PACKAGE_PREFIX}-ca-certificates" \
+            "${MINGW_PACKAGE_PREFIX}-gnutls")
+         )
+if [ -n "${_namesuff}" ]; then
+  provides=("${MINGW_PACKAGE_PREFIX}-${_realname}")
+  conflicts=("${MINGW_PACKAGE_PREFIX}-${_realname}")
+fi
+options=('staticlibs')
+source=("${url}/download/${_realname}-${pkgver}.tar.bz2"
+        "0001-Make-cURL-relocatable.patch"
+        "curl-7.59.0-file-url.patch")
 sha256sums=('b5920ffd6a8c95585fb95070e0ced38322790cb335c39d0dab852d12e157b5a0'
-            '2e6e2245a10890f8a8b1ec84dbe86dd2415b05359a93e69be9c7b90768e6ccc0'
-            '5d6563e29e85c7fadd129308e9927450c59fe5d429d9b27aafd3460bfc40defb'
+            'a46bac9ee54e6b4edd7cdffcfbe0d763dcef5ae64deb68be262c02cc1bc8aee5'
             '4c362c2d24909333cfceeea91ca27a6dedc6c84a3ce478df1fe671ff687471e2')
 
 prepare() {
-  cd "${pkgname}-${pkgver}"
-  patch -p1 -i ${srcdir}/curl-7.58.0-libpsl-static-libs.patch
-  patch -p1 -i ${srcdir}/curl-7.55.1-msys2.patch
-  patch -p1 -i ${srcdir}/curl-7.59.0-file-url.patch
-  autoreconf -fi
+  cd "${_realname}-${pkgver}"
+  rm -f lib/pathtools.h lib/pathtools.c > /dev/null 2>&1 || true
+  patch -p1 -i "${srcdir}/curl-7.59.0-file-url.patch"
+  patch -p1 -i "${srcdir}/0001-Make-cURL-relocatable.patch"
+  autoreconf -vfi
 }
 
 build() {
-  cd "${pkgname}-${pkgver}"
-
-  ./configure \
-    --build=${CHOST} \
-    --prefix=/usr \
-    --enable-shared \
+  local -a extra_config
+  if check_option "debug" "y"; then
+    extra_config+=( --enable-debug )
+  else
+    extra_config+=( --disable-debug )
+  fi
+  mkdir -p "${srcdir}/build-${CARCH}"
+  local -a _variant_config
+  if [ "${_variant}" = "-winssl" ]; then
+    _variant_config+=("--without-ssl")
+    _variant_config+=("--without-gnutls")
+    _variant_config+=("--with-winssl")
+    _variant_config+=('--without-nghttp2')
+    _variant_config+=("--without-ca-bundle")
+    _variant_config+=("--without-ca-path")
+    _variant_config+=("--without-librtmp")
+  elif [ "${_variant}" = "-gnutls" ]; then
+    _variant_config+=("--with-default-ssl-backend=gnutls")
+    _variant_config+=("--without-ssl")
+    _variant_config+=("--with-gnutls")
+    _variant_config+=("--with-winssl")
+    _variant_config+=('--without-nghttp2')
+    _variant_config+=("--with-ca-bundle=${MINGW_PREFIX}/ssl/certs/ca-bundle.crt")
+    _variant_config+=("--with-librtmp")
+  elif [ "${_variant}" = "-openssl" ]; then
+    _variant_config+=("--with-default-ssl-backend=openssl")
+    _variant_config+=("--without-gnutls")
+    _variant_config+=("--with-ssl")
+    _variant_config+=("--with-winssl")
+    _variant_config+=("--with-ca-bundle=${MINGW_PREFIX}/ssl/certs/ca-bundle.crt")
+    _variant_config+=("--with-nghttp2=${MINGW_PREFIX}/")
+    _variant_config+=("--without-librtmp")
+  fi
+  cd "${srcdir}/build-${CARCH}"
+  ../${_realname}-${pkgver}/configure \
+    --prefix=${MINGW_PREFIX} \
+    --build=${MINGW_CHOST} \
+    --host=${MINGW_CHOST} \
+    --target=${MINGW_CHOST} \
+    --without-random \
     --enable-static \
-    --enable-debug \
-    --enable-optimize \
-    --enable-ipv6 \
-    --disable-hidden-symbols \
-    --disable-ares \
-    --with-gssapi \
-    --with-libidn \
-    --with-libmetalink \
-    --without-librtmp \
-    --with-libssh2 \
-    --without-spnego \
-    --with-ssl \
-    --without-gnutls \
-    --with-zlib \
-    --with-libpsl \
-    --with-ca-bundle=/usr/ssl/certs/ca-bundle.crt \
-    ac_cv_func_setmode=yes
-
+    --enable-shared \
+    --enable-sspi \
+    --enable-ldap \
+    --enable-ldaps \
+    --with-brotli \
+    --with-ldap-lib=wldap32 \
+    --with-libmetalink=${MINGW_PREFIX} \
+    "${_variant_config[@]}" \
+    "${extra_config[@]}"
+# there's a bug with zsh completion generation script and Windows.
+# curl has to specified with the file extension.
+  sed -i "s|\/curl > \$\@|\/curl\$\{EXEEXT\} > \$\@|" scripts/Makefile
   make
-  make DESTDIR="${srcdir}/dest" install
 }
 
-package_curl() {
-  depends=('ca-certificates' 'libcurl' 'libcrypt' 'libmetalink'
-           'libnghttp2' 'libpsl' 'openssl' 'zlib')
-  groups=('base')
+package() {
+  cd "${srcdir}/build-${CARCH}"
+  make DESTDIR="${pkgdir}" install
 
-  mkdir -p ${pkgdir}/usr/bin
-  cp -f ${srcdir}/dest/usr/bin/*.exe ${pkgdir}/usr/bin/
-  cp -rf ${srcdir}/dest/usr/share ${pkgdir}/usr/
-
-  # license
-  install -Dm644 ${srcdir}/${pkgname}-${pkgver}/COPYING "${pkgdir}/usr/share/licenses/${pkgname}/COPYING"
-}
-
-package_libcurl() {
-  pkgdesc="Multi-protocol file transfer library (runtime)"
-  depends=('ca-certificates' 'heimdal-libs' 'libcrypt' 'libidn2' 'libmetalink'
-          'libnghttp2' 'libpsl' 'libssh2' 'openssl' 'zlib') #'libcares'
-  groups=('libraries')
-
-  mkdir -p ${pkgdir}/usr/bin
-  cp -f ${srcdir}/dest/usr/bin/*.dll ${pkgdir}/usr/bin/
-}
-
-package_libcurl-devel() {
-  pkgdesc="Libcurl headers and libraries"
-  depends=("libcurl=${pkgver}" 'heimdal-devel' 'libcrypt-devel' 'libidn2-devel' 'libmetalink-devel'
-           'libnghttp2-devel' 'libpsl-devel' 'libssh2-devel' 'openssl-devel' 'zlib-devel') #'libcares-devel'
-  options=('staticlibs')
-  groups=('development')
-
-  mkdir -p ${pkgdir}/usr/bin
-  cp -f ${srcdir}/dest/usr/bin/*-config ${pkgdir}/usr/bin/
-  cp -rf ${srcdir}/dest/usr/include ${pkgdir}/usr/
-  cp -rf ${srcdir}/dest/usr/lib ${pkgdir}/usr/
+  local PREFIX_DEPS=$(cygpath -am ${MINGW_PREFIX})
+  sed -s "s|${PREFIX_DEPS}|${MINGW_PREFIX}|g" -i ${pkgdir}${MINGW_PREFIX}/bin/curl-config
 }

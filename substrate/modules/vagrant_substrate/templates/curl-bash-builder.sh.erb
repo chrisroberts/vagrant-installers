@@ -15,11 +15,9 @@ built_686=$?
 ls | grep "x86_64"
 built_x86_64=$?
 
-pacman -S --noconfirm base-devel
-
 if [[ $built_686 -eq 0 && $built_x86_64 -eq 0 ]]
 then
     echo "skipping build"
 else
-    makepkg -sf --noconfirm
+    makepkg-mingw -sf --noconfirm
 fi
