@@ -8,9 +8,21 @@ jobs:
           SLACK_MESSAGE="installers here"
           eval $SLACK_EXECUTE
           exit $result
+  release:
+    docker:
+      - image: circleci/ruby:2.4.6
+    steps:
+      - run: |
+          SLACK_MESSAGE="installers received tagged job: ${CIRCLE_TAG}"
+          eval $SLACK_EXECUTE
 workflows:
   version: 2
   build:
     jobs:
       - build:
           context: vagrant-test
+      - release:
+          context: vagrant-test
+          filters:
+            tags:
+              only: /*/
