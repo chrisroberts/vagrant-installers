@@ -1,0 +1,16 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/ruby:2.4.6
+    steps:
+      - run: |
+          SLACK_MESSAGE="installers here"
+          eval $SLACK_EXECUTE
+          exit $result
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build:
+          context: vagrant-test
