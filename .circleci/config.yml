@@ -25,4 +25,4 @@ workflows:
           context: vagrant-test
           filters:
             tags:
-              only: /*/
+              only: /.*/
