@@ -13,6 +13,7 @@ reference:
     PACKET_EXEC_PREFER_FACILITIES: sjc1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
     PACKET_EXEC_PRE_BUILTINS: InstallVmware
+    PACKET_EXEC_TMPFS_PATH: /run
 jobs:
   package:
     environment:
@@ -59,9 +60,7 @@ jobs:
           set +e
           echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
           chmod 600 /tmp/packet-key
-          ls -lh /tmp
-          md5sum /tmp/packet-key
-          ./packet-exec run -ssh-key /tmp/packet-key -upload -- ./.runner-vmware.sh | tee .output
+          ./packet-exec run -ssh-key /tmp/packet-key -upload -- ./.runner-vmware.sh 2>&1 | tee .output
           result=$?
           rm /tmp/packet-key
           if [ $result -ne 0 ]; then
