@@ -11,7 +11,7 @@ reference:
     SLACK_TITLE: Vagrant Packaging
     PACKET_EXEC_DEVICE_NAME: installers
     PACKET_EXEC_DEVICE_SIZE: baremetal_1
-    PACKET_EXEC_PREFER_FACILITIES: ewr1,dfw1,ams1,atl1,sjc1,lax1,sea1
+    PACKET_EXEC_PREFER_FACILITIES: ewr1,iad1,ord1,dfw1,ams1,atl1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
     PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware
     PACKET_EXEC_TMPFS_PATH: /run
