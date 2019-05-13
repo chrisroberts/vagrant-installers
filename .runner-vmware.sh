@@ -20,7 +20,9 @@ vagrant box prune
 
 guests=$(vagrant status | grep vmware | awk '{print $1}')
 
-echo "token: ${VAGRANT_CLOUD_TOKEN}"
+echo "token: $(echo $VAGRANT_CLOUD_TOKEN | head -c 5)"
+echo "url: $(echo $VAGRANT_VMWARE_LICENSE_URL | head -c 5)"
+
 
 vagrant up --no-provision
 
