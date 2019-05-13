@@ -20,7 +20,7 @@ jobs:
       - checkout
       - run: |
           set +e
-          version="${CIRCLE_TAG:-master}"
+          version=$(echo "${CIRCLE_TAG:-master}" | sed 's/^v//')
           aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant.gem | tee .output
           result=$?
           if [ $result -ne 0 ]; then
