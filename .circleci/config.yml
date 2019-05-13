@@ -62,7 +62,7 @@ jobs:
           set +e
           echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
           chmod 600 /tmp/packet-key
-          ./packet-exec run -ssh-key /tmp/packet-key -upload -debug -- ./.runner-vmware.sh 2>&1 | tee .output
+          ./packet-exec run -ssh-key /tmp/packet-key -upload -- ./.runner-vmware.sh 2>&1 | tee .output
           result=$?
           rm /tmp/packet-key
           if [ $result -ne 0 ]; then
