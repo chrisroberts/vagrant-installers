@@ -5,6 +5,7 @@ reference:
       - image: circleci/python:stretch
   environment: &ENVIRONMENT
     SLACK_USERNAME: Vagrant
+    SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
     PACKET_EXEC_DEVICE_NAME: installers
     PACKET_EXEC_DEVICE_SIZE: baremetal_1
@@ -18,6 +19,7 @@ jobs:
     docker: *aws_image
     steps:
       - checkout
+      - run: sudo pip install awscli
       - run: |
           set +e
           version=$(echo "${CIRCLE_TAG:-master}" | sed 's/^v//')
@@ -25,7 +27,7 @@ jobs:
           result=$?
           if [ $result -ne 0 ]; then
             SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="*ERROR:* Failed to download Vagrant RubyGem\n\n---\n\n$(cat .output)"
+            SLACK_MESSAGE="Failed to download Vagrant RubyGem\n\n\`\`\`$(cat .output)\`\`\`"
             eval $SLACK_EXECUTE
           fi
           exit $result
@@ -39,7 +41,7 @@ jobs:
           result=$?
           if [ $result -ne 0 ]; then
             SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="*ERROR:* Failed to create remote packet device\n\n---\n\n$(cat .output)"
+            SLACK_MESSAGE="Failed to create remote packet device\n\n\`\`\`$(cat .output)\`\`\`"
             eval $SLACK_EXECUTE
           fi
           exit $result
@@ -52,7 +54,7 @@ jobs:
           rm /tmp/packet-key
           if [ $result -ne 0 ]; then
             SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="*ERROR:* Failed to build Vagrant installer packages\n\n---\n\n$(cat .output)"
+            SLACK_MESSAGE="Failed to build Vagrant installer packages\n\n\`\`\`$(cat .output)\`\`\`"
             eval $SLACK_EXECUTE
           fi
           exit $result
@@ -63,10 +65,10 @@ jobs:
           aws s3 cp --recursive pkg/ "${store}" | tee .output
           result=$?
           if [ $result -eq 0 ]; then
-            SLACK_MESSAGE="New Vagrant installer packages available\n\n* Version: ${version}\n\n---\n\nAvailble: ${store}"
+            SLACK_MESSAGE="New Vagrant installer packages available\n\n* Version: ${version}\n\n> Location: ${store}"
           else
             SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="*ERROR*: Failed to upload vagrant installer packages\n\n---\n\n$(cat .output)"
+            SLACK_MESSAGE="Failed to upload vagrant installer packages\n\n\`\`\`$(cat .output)\`\`\`"
           fi
           eval $SLACK_EXECUTE
           exit $result
