@@ -5,7 +5,7 @@ reference:
       - image: circleci/python:stretch
   environment: &ENVIRONMENT
     packet_exec_version: "0.1.1"
-    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-13/b870711b
+    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-13/a425afeb
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -13,7 +13,7 @@ reference:
     PACKET_EXEC_DEVICE_SIZE: baremetal_1
     PACKET_EXEC_PREFER_FACILITIES: sjc1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
-    PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant
+    PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware
     PACKET_EXEC_TMPFS_PATH: /run
 jobs:
   package:
