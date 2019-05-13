@@ -4,6 +4,7 @@ reference:
     aws: &aws_image
       - image: circleci/python:stretch
   environment: &ENVIRONMENT
+    packet_exec_version="0.1.1"
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -29,15 +30,24 @@ jobs:
             SLACK_STATE=$SLACK_ERROR
             SLACK_MESSAGE="Failed to download Vagrant RubyGem\n\n\`\`\`$(cat .output)\`\`\`"
             eval $SLACK_EXECUTE
+            exit $result
           fi
+          aws s3 cp ${ASSETS_PRIVATE_BUCKET}/hashicorp/packet-exec/v${packet_exec_version}/packet-exec_linux_amd64 packet-exec | tee .output
+          result=$?
+          if [ $result -ne 0 ]; then
+            SLACK_STATE=$SLACK_ERROR
+            SLACK_MESSAGE="Failed to download packet-exec utility\n\n\`\`\`$(cat .output)\`\`\`"
+            eval $SLACK_EXECUTE
+          fi
+          chmod 755 ./packet-exec
           exit $result
       - run: |
           set +e
-          packet-exec info
+          ./packet-exec info
           if [ $? -eq 0 ]; then
             exit
           fi
-          packet-exec create | tee .output
+          ./packet-exec create | tee .output
           result=$?
           if [ $result -ne 0 ]; then
             SLACK_STATE=$SLACK_ERROR
@@ -49,7 +59,7 @@ jobs:
           set +e
           echo "${PACKET_SSH_KEY}" > /tmp/packet-key
           chmod 600 /tmp/packet-key
-          packet-exec run -ssh-key /tmp/packet-key -upload -- ./.runner-vmware.sh | tee .output
+          ./packet-exec run -ssh-key /tmp/packet-key -upload -- ./.runner-vmware.sh | tee .output
           result=$?
           rm /tmp/packet-key
           if [ $result -ne 0 ]; then
