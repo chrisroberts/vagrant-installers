@@ -1,30 +1,83 @@
 version: 2
+reference:
+  images:
+    aws: &aws_image
+      - image: circleci/python:stretch
+  environment: &ENVIRONMENT
+    SLACK_USERNAME: Vagrant
+    SLACK_TITLE: Vagrant Packaging
+    PACKET_EXEC_DEVICE_NAME: installers
+    PACKET_EXEC_DEVICE_SIZE: baremetal_1
+    PACKET_EXEC_PREFER_FACILITIES: sjc1,lax1,sea1
+    PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
+    PACKET_EXEC_PRE_BUILTINS: InstallVmware
 jobs:
-  build:
-    docker:
-      - image: circleci/ruby:2.4.6
+  package:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *aws_image
     steps:
+      - checkout
       - run: |
-          SLACK_MESSAGE="installers here"
+          set +e
+          version="${CIRCLE_TAG:-master}"
+          aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant.gem | tee .output
+          result=$?
+          if [ $result -ne 0 ]; then
+            SLACK_STATE=$SLACK_ERROR
+            SLACK_MESSAGE="*ERROR:* Failed to download Vagrant RubyGem\n\n---\n\n$(cat .output)"
+            eval $SLACK_EXECUTE
+          fi
+          exit $result
+      - run: |
+          set +e
+          packet-exec info
+          if [ $? -eq 0 ]; then
+            exit
+          fi
+          packet-exec create | tee .output
+          result=$?
+          if [ $result -ne 0 ]; then
+            SLACK_STATE=$SLACK_ERROR
+            SLACK_MESSAGE="*ERROR:* Failed to create remote packet device\n\n---\n\n$(cat .output)"
+            eval $SLACK_EXECUTE
+          fi
+          exit $result
+      - run: |
+          set +e
+          echo "${PACKET_SSH_KEY}" > /tmp/packet-key
+          chmod 600 /tmp/packet-key
+          packet-exec run -ssh-key /tmp/packet-key -upload -- ./.runner-vmware.sh | tee .output
+          result=$?
+          rm /tmp/packet-key
+          if [ $result -ne 0 ]; then
+            SLACK_STATE=$SLACK_ERROR
+            SLACK_MESSAGE="*ERROR:* Failed to build Vagrant installer packages\n\n---\n\n$(cat .output)"
+            eval $SLACK_EXECUTE
+          fi
+          exit $result
+      - run: |
+          set +e
+          version="${CIRCLE_TAG:-master}"
+          store="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${version}/"
+          aws s3 cp --recursive pkg/ "${store}" | tee .output
+          result=$?
+          if [ $result -eq 0 ]; then
+            SLACK_MESSAGE="New Vagrant installer packages available\n\n* Version: ${version}\n\n---\n\nAvailble: ${store}"
+          else
+            SLACK_STATE=$SLACK_ERROR
+            SLACK_MESSAGE="*ERROR*: Failed to upload vagrant installer packages\n\n---\n\n$(cat .output)"
+          fi
           eval $SLACK_EXECUTE
           exit $result
-  release:
-    docker:
-      - image: circleci/ruby:2.4.6
-    steps:
-      - run: |
-          SLACK_MESSAGE="installers received tagged job: ${CIRCLE_TAG}"
-          eval $SLACK_EXECUTE
 workflows:
   version: 2
   build:
     jobs:
-      - build:
-          context: vagrant-test
-      - release:
+      - package:
           context: vagrant-test
           filters:
             branches:
-              ignore: /.*/
+              ignore: master
             tags:
               only: /.*/
