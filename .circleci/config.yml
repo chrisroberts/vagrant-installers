@@ -57,7 +57,7 @@ jobs:
           exit $result
       - run: |
           set +e
-          echo -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+          echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
           chmod 600 /tmp/packet-key
           ls -lh /tmp
           md5sum /tmp/packet-key
