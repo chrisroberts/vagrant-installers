@@ -20,6 +20,8 @@ vagrant box prune
 
 guests=$(vagrant status | grep vmware | awk '{print $1}')
 
+echo "token: ${VAGRANT_CLOUD_TOKEN}"
+
 vagrant up --no-provision
 
 set +e
