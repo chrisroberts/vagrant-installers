@@ -5,7 +5,7 @@ reference:
       - image: circleci/python:stretch
   environment: &ENVIRONMENT
     packet_exec_version: "0.1.1"
-    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-13/e1bb9da4
+    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-13/b870711b
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -26,7 +26,7 @@ jobs:
       - run: |
           set +e
           version=$(echo "${CIRCLE_TAG:-master}" | sed 's/^v//')
-          aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant.gem | tee .output
+          aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant.gem 2>&1 | tee .output
           result=$?
           if [ $result -ne 0 ]; then
             SLACK_STATE=$SLACK_ERROR
@@ -35,7 +35,7 @@ jobs:
             exit $result
           fi
           packet_exec_prefix=${packet_exec_prefix:-"${ASSETS_PRIVATE_BUCKET}/hashicorp/packet-exec/v${packet_exec_version}"}
-          aws s3 cp ${packet_exec_prefix}/packet-exec_linux_amd64 packet-exec | tee .output
+          aws s3 cp ${packet_exec_prefix}/packet-exec_linux_amd64 packet-exec 2>&1 | tee .output
           result=$?
           if [ $result -ne 0 ]; then
             SLACK_STATE=$SLACK_ERROR
