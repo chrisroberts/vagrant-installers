@@ -47,7 +47,7 @@ jobs:
           if [ $? -eq 0 ]; then
             exit
           fi
-          ./packet-exec create | tee .output
+          ./packet-exec create 2>&1 | tee .output
           result=$?
           if [ $result -ne 0 ]; then
             SLACK_STATE=$SLACK_ERROR
