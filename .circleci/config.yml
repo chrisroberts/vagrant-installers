@@ -59,6 +59,8 @@ jobs:
           set +e
           echo "${PACKET_SSH_KEY}" > /tmp/packet-key
           chmod 600 /tmp/packet-key
+          ls -lh /tmp
+          md5sum /tmp/packet-key
           ./packet-exec run -ssh-key /tmp/packet-key -upload -- ./.runner-vmware.sh | tee .output
           result=$?
           rm /tmp/packet-key
