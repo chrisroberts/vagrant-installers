@@ -111,9 +111,9 @@ jobs:
       <<: *ENVIRONMENT
     docker: *aws_image
     steps:
+      - checkout
       - attach_workspace:
           at: .
-      - checkout
       - run:
           name: Build packages
           command: |
