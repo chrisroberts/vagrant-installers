@@ -15,6 +15,7 @@ reference:
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
     PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware
     PACKET_EXEC_TMPFS_PATH: /run
+
 jobs:
   init:
     environment:
@@ -157,7 +158,7 @@ jobs:
             exit $result
 workflows:
   version: 2
-  build:
+  ci:
     jobs:
       - init:
           context: vagrant-test
@@ -187,6 +188,7 @@ workflows:
       - package:
           context: vagrant-test
           requires:
+            - setup
             - substrate
           filters:
             branches:
