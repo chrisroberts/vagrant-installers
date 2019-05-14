@@ -52,7 +52,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - *.gem
+            - ./*.gem
             - packet-exec
   setup:
     environment:
