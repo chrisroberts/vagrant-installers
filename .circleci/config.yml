@@ -5,7 +5,7 @@ reference:
       - image: circleci/python:stretch
   environment: &ENVIRONMENT
     packet_exec_version: "0.1.1"
-    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-13/9f58478a
+    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-14/e0ace9da
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
