@@ -16,81 +16,188 @@ reference:
     PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware
     PACKET_EXEC_TMPFS_PATH: /run
 jobs:
+  init:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *aws_image
+    steps:
+      - run: sudo pip install awscli
+      - run:
+          name: Fetch Vagrant RubyGem
+          command: |
+            set +e
+            version=$(echo "${CIRCLE_TAG:-master}" | sed 's/^v//')
+            aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant-${version}.gem 2>&1 | tee .output
+            result=$?
+            if [ $result -ne 0 ]; then
+              SLACK_STATE=$SLACK_ERROR
+              SLACK_MESSAGE="Failed to download Vagrant RubyGem\n\n\`\`\`$(cat .output)\`\`\`"
+              eval $SLACK_EXECUTE
+            fi
+            exit $result
+      - run:
+          name: Fetch packet-exec
+          command: |
+            packet_exec_prefix=${packet_exec_prefix:-"${ASSETS_PRIVATE_BUCKET}/hashicorp/packet-exec/v${packet_exec_version}"}
+            aws s3 cp ${packet_exec_prefix}/packet-exec_linux_amd64 packet-exec 2>&1 | tee .output
+            result=$?
+            if [ $result -ne 0 ]; then
+              SLACK_STATE=$SLACK_ERROR
+              SLACK_MESSAGE="Failed to download packet-exec utility\n\n\`\`\`$(cat .output)\`\`\`"
+              eval $SLACK_EXECUTE
+            fi
+            chmod 755 ./packet-exec
+            exit $result
+      - persist_to_workspace:
+          root: .
+          paths:
+            - *.gem
+            - packet-exec
+  setup:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *aws_image
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Create packet device
+          command: |
+            set +e
+            ./packet-exec info
+            if [ $? -eq 0 ]; then
+              exit
+            fi
+            ./packet-exec create 2>&1 | tee .output
+            result=$?
+            if [ $result -ne 0 ]; then
+              SLACK_STATE=$SLACK_ERROR
+              SLACK_MESSAGE="Failed to create remote packet device\n\n\`\`\`$(cat .output)\`\`\`"
+              eval $SLACK_EXECUTE
+            fi
+            exit $result
+  substrate:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *aws_image
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build substrates
+          command: |
+            set +e
+            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+            chmod 600 /tmp/packet-key
+            export PKT_VAGRANT_BUILD_TYPE="substrate"
+            export PKT_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+            ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 | tee .output
+            result=$?
+            rm /tmp/packet-key
+            if [ $result -ne 0 ]; then
+              SLACK_STATE=$SLACK_ERROR
+              SLACK_MESSAGE="Failed to build Vagrant substrates\n\n\`\`\`$(tail .output)\`\`\`"
+              eval $SLACK_EXECUTE
+            fi
+            exit $result
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./assets/*
   package:
     environment:
       <<: *ENVIRONMENT
     docker: *aws_image
     steps:
-      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build packages
+          command: |
+            set +e
+            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+            chmod 600 /tmp/packet-key
+            export PKT_VAGRANT_BUILD_TYPE="package"
+            export PKT_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+            ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 | tee .output
+            result=$?
+            rm /tmp/packet-key
+            if [ $result -ne 0 ]; then
+              SLACK_STATE=$SLACK_ERROR
+              SLACK_MESSAGE="Failed to build Vagrant installer packages\n\n\`\`\`$(tail .output)\`\`\`"
+              eval $SLACK_EXECUTE
+            fi
+            exit $result
+  upload:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *aws_image
+    steps:
+      - attach_workspace:
+          at: .
       - run: sudo pip install awscli
-      - run: |
-          set +e
-          version=$(echo "${CIRCLE_TAG:-master}" | sed 's/^v//')
-          aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant.gem 2>&1 | tee .output
-          result=$?
-          if [ $result -ne 0 ]; then
-            SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="Failed to download Vagrant RubyGem\n\n\`\`\`$(cat .output)\`\`\`"
+      - run:
+          name: Upload packages
+          command: |
+            set +e
+            if [ "${CIRCLE_TAG}" != "" ]; then
+              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}"
+            else
+              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}"
+            fi
+            aws s3 cp --recursive ./assets/* "${s3_dst}" 2>&1 | tee .output
+            result=$?
+            if [ $result -ne 0 ]; then
+              SLACK_STATE=$SLACK_ERROR
+              SLACK_MESSAGE="Failed to upload installer assets\n\n\`\`\`$(cat .output)\`\`\`"
+            else
+              SLACK_MESSAGE="New installers assets available:\n\n* ${s3_dst}"
+            fi
             eval $SLACK_EXECUTE
             exit $result
-          fi
-          packet_exec_prefix=${packet_exec_prefix:-"${ASSETS_PRIVATE_BUCKET}/hashicorp/packet-exec/v${packet_exec_version}"}
-          aws s3 cp ${packet_exec_prefix}/packet-exec_linux_amd64 packet-exec 2>&1 | tee .output
-          result=$?
-          if [ $result -ne 0 ]; then
-            SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="Failed to download packet-exec utility\n\n\`\`\`$(cat .output)\`\`\`"
-            eval $SLACK_EXECUTE
-          fi
-          chmod 755 ./packet-exec
-          exit $result
-      - run: |
-          set +e
-          ./packet-exec info
-          if [ $? -eq 0 ]; then
-            exit
-          fi
-          ./packet-exec create 2>&1 | tee .output
-          result=$?
-          if [ $result -ne 0 ]; then
-            SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="Failed to create remote packet device\n\n\`\`\`$(cat .output)\`\`\`"
-            eval $SLACK_EXECUTE
-          fi
-          exit $result
-      - run: |
-          set +e
-          echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-          chmod 600 /tmp/packet-key
-          ./packet-exec run -ssh-key /tmp/packet-key -upload -- ./.runner-vmware.sh 2>&1 | tee .output
-          result=$?
-          rm /tmp/packet-key
-          if [ $result -ne 0 ]; then
-            SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="Failed to build Vagrant installer packages\n\n\`\`\`$(tail .output)\`\`\`"
-            eval $SLACK_EXECUTE
-          fi
-          exit $result
-      - run: |
-          set +e
-          version="${CIRCLE_TAG:-master}"
-          store="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${version}/"
-          aws s3 cp --recursive pkg/ "${store}" | tee .output
-          result=$?
-          if [ $result -eq 0 ]; then
-            SLACK_MESSAGE="New Vagrant installer packages available\n\n* Version: ${version}\n\n> Location: ${store}"
-          else
-            SLACK_STATE=$SLACK_ERROR
-            SLACK_MESSAGE="Failed to upload vagrant installer packages\n\n\`\`\`$(cat .output)\`\`\`"
-          fi
-          eval $SLACK_EXECUTE
-          exit $result
 workflows:
   version: 2
   build:
     jobs:
+      - init:
+          context: vagrant-test
+          filters:
+            branches:
+              ignore: master
+            tags:
+              only: /.*/
+      - setup:
+          context: vagrant-test
+          requires:
+            - init
+          filters:
+            branches:
+              ignore: master
+            tags:
+              only: /.*/
+      - substrate:
+          context: vagrant-test
+          requires:
+            - setup
+          filters:
+            branches:
+              ignore: master
+            tags:
+              only: /.*/
       - package:
           context: vagrant-test
+          requires:
+            - substrate
+          filters:
+            branches:
+              ignore: master
+            tags:
+              only: /.*/
+      - upload:
+          context: vagrant-test
+          requires:
+            - substrate
+            - package
           filters:
             branches:
               ignore: master
