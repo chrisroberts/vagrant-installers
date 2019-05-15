@@ -33,6 +33,7 @@ reference:
               else
                 s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
               fi
+              mkdir -p assets
               mv ./substrate-assets/* ./assets/
               aws s3 cp --recursive ./assets/* "${s3_dst}" 2>&1 | tee .output
               result=$?

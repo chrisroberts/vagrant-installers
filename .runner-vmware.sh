@@ -8,6 +8,7 @@ function keepalive {
     slept=0
     while true
     do
+        let slept++
         if [ $slept -gt 540 ]; then
             echo "."
             slept=0
@@ -20,7 +21,7 @@ trap cleanup EXIT
 
 GEM_PATH=$(ls vagrant-*.gem)
 
-set -ex
+set -e
 
 if [ -f "${GEM_PATH}" ]
 then
@@ -61,8 +62,6 @@ do
         rm .output-${guest}
     fi
 done
-
-set +ex
 
 pkill -P $kp
 kill $kp
