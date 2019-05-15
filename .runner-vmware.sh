@@ -4,6 +4,14 @@ function cleanup {
     vagrant destroy --force > /dev/null 2>&1
 }
 
+function keepalive {
+    while true
+    do
+        sleep 540
+        echo "."
+    done
+}
+
 trap cleanup EXIT
 
 GEM_PATH=$(ls vagrant-*.gem)
@@ -34,6 +42,8 @@ done
 
 result=0
 
+keepalive &
+kp=$!
 
 for guest in ${guests}
 do
@@ -47,6 +57,8 @@ do
         rm .output-${guest}
     fi
 done
+
+kill $kp
 
 if [ $result -eq 0 ]; then
     mkdir -p assets

@@ -122,9 +122,12 @@ jobs:
             chmod 600 /tmp/packet-key
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PKT_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+            mv assets substrate-assets
             ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 | tee .output
             result=$?
             rm /tmp/packet-key
+            mkdir -p assets
+            mv substrate-assets/* assets/
             if [ $result -ne 0 ]; then
               SLACK_STATE=$SLACK_ERROR
               SLACK_MESSAGE="Failed to build Vagrant installer packages\n\n\`\`\`$(tail .output)\`\`\`"
