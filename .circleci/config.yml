@@ -1,4 +1,4 @@
-version: 2.1
+version: 2
 reference:
   images:
     aws: &aws_image
@@ -15,6 +15,36 @@ reference:
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
     PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware
     PACKET_EXEC_TMPFS_PATH: /run
+  copypasta:
+    upload: &UPLOAD
+      environment:
+        <<: *ENVIRONMENT
+      docker: *aws_image
+      steps:
+        - attach_workspace:
+            at: .
+        - run: sudo pip install awscli
+        - run:
+            name: Upload packages
+            command: |
+              set +e
+              if [ "${CIRCLE_TAG}" != "" ]; then
+                s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
+              else
+                s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+              fi
+              mv ./substrate-assets/* ./assets/
+              aws s3 cp --recursive ./assets/* "${s3_dst}" 2>&1 | tee .output
+              result=$?
+              if [ $result -ne 0 ]; then
+                SLACK_STATE=$SLACK_ERROR
+                SLACK_MESSAGE="Failed to upload installer assets\n\n\`\`\`$(cat .output)\`\`\`"
+              else
+                SLACK_MESSAGE="New installers assets available:\n\n* ${s3_dst}"
+              fi
+              eval $SLACK_EXECUTE
+              exit $result
+
 
 jobs:
   init:
@@ -164,34 +194,10 @@ jobs:
           root: .
           paths:
             - ./substrate-assets
-  upload:
-    environment:
-      <<: *ENVIRONMENT
-    docker: *aws_image
-    steps:
-      - attach_workspace:
-          at: .
-      - run: sudo pip install awscli
-      - run:
-          name: Upload packages
-          command: |
-            set +e
-            if [ "${CIRCLE_TAG}" != "" ]; then
-              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
-            else
-              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
-            fi
-            mv ./substrate-assets/* ./assets/
-            aws s3 cp --recursive ./assets/* "${s3_dst}" 2>&1 | tee .output
-            result=$?
-            if [ $result -ne 0 ]; then
-              SLACK_STATE=$SLACK_ERROR
-              SLACK_MESSAGE="Failed to upload installer assets\n\n\`\`\`$(cat .output)\`\`\`"
-            else
-              SLACK_MESSAGE="New installers assets available:\n\n* ${s3_dst}"
-            fi
-            eval $SLACK_EXECUTE
-            exit $result
+  upload_substrates:
+    <<: *UPLOAD
+  upload_packages:
+    <<: *UPLOAD
 workflows:
   version: 2
   package:
@@ -228,7 +234,7 @@ workflows:
               ignore: master
             tags:
               only: /.*/
-      - upload:
+      - upload_substrates:
           context: vagrant-test
           requires:
             - substrate
@@ -247,7 +253,7 @@ workflows:
               ignore: master
             tags:
               only: /.*/
-      - upload:
+      - upload_packages:
           context: vagrant-test
           requires:
             - package
