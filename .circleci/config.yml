@@ -1,4 +1,4 @@
-version: 2
+version: 2.1
 reference:
   images:
     aws: &aws_image
