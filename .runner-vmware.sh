@@ -5,10 +5,14 @@ function cleanup {
 }
 
 function keepalive {
+    slept=0
     while true
     do
-        sleep 540
-        echo "."
+        if [ $slept -gt 540 ]; then
+            echo "."
+            slept=0
+        fi
+        sleep 1
     done
 }
 
@@ -58,6 +62,9 @@ do
     fi
 done
 
+set +ex
+
+pkill -P $kp
 kill $kp
 
 if [ $result -eq 0 ]; then

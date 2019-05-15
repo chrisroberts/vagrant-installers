@@ -89,23 +89,26 @@ jobs:
           name: Build substrates
           command: |
             set +e
-            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-            chmod 600 /tmp/packet-key
-            export PKT_VAGRANT_BUILD_TYPE="substrate"
-            export PKT_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-            ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 | tee .output
-            result=$?
-            rm /tmp/packet-key
-            if [ $result -ne 0 ]; then
-              SLACK_STATE=$SLACK_ERROR
-              SLACK_MESSAGE="Failed to build Vagrant substrates\n\n\`\`\`$(tail .output)\`\`\`"
-              eval $SLACK_EXECUTE
+            ls ./substrate-assets/* | grep substrate 2>&1 > /dev/null
+            if [ $? -ne 0 ]; then
+              echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+              chmod 600 /tmp/packet-key
+              export PKT_VAGRANT_BUILD_TYPE="substrate"
+              export PKT_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+              ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh 2>&1 | tee .output
+              result=$?
+              rm /tmp/packet-key
+              if [ $result -ne 0 ]; then
+                SLACK_STATE=$SLACK_ERROR
+                SLACK_MESSAGE="Failed to build Vagrant substrates\n\n\`\`\`$(tail .output)\`\`\`"
+                eval $SLACK_EXECUTE
+              fi
+              exit $result
             fi
-            exit $result
       - persist_to_workspace:
           root: .
           paths:
-            - ./assets/*
+            - ./substrate-assets/
   package:
     environment:
       <<: *ENVIRONMENT
@@ -122,7 +125,6 @@ jobs:
             chmod 600 /tmp/packet-key
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PKT_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-            mv assets substrate-assets
             ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 | tee .output
             result=$?
             rm /tmp/packet-key
@@ -134,6 +136,34 @@ jobs:
               eval $SLACK_EXECUTE
             fi
             exit $result
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./assets/
+  existing_substrates:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *aws_image
+    steps:
+      - run: sudo pip install awscli
+      - run:
+          name: Check for existing substrates
+          command: |
+            set +e
+            if [ "${CIRCLE_TAG}" != "" ]; then
+              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
+            else
+              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+            fi
+            mkdir -p substrate-assets
+            aws s3 ls "${s3_dst}" | grep "substrate"
+            if [ $? -eq 0 ]; then
+              aws s3 cp --recursive "${s3_dst}" ./substrate-assets/
+            fi
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./substrate-assets
   upload:
     environment:
       <<: *ENVIRONMENT
@@ -147,10 +177,11 @@ jobs:
           command: |
             set +e
             if [ "${CIRCLE_TAG}" != "" ]; then
-              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}"
+              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             else
-              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}"
+              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
             fi
+            mv ./substrate-assets/* ./assets/
             aws s3 cp --recursive ./assets/* "${s3_dst}" 2>&1 | tee .output
             result=$?
             if [ $result -ne 0 ]; then
@@ -163,7 +194,7 @@ jobs:
             exit $result
 workflows:
   version: 2
-  ci:
+  package:
     jobs:
       - init:
           context: vagrant-test
@@ -181,10 +212,26 @@ workflows:
               ignore: master
             tags:
               only: /.*/
+      - existing_substrates:
+          context: vagrant-test
+          filters:
+            branches:
+              ignore: master
+            tags:
+              only: /.*/
       - substrate:
           context: vagrant-test
           requires:
             - setup
+          filters:
+            branches:
+              ignore: master
+            tags:
+              only: /.*/
+      - upload:
+          context: vagrant-test
+          requires:
+            - substrate
           filters:
             branches:
               ignore: master
@@ -203,7 +250,6 @@ workflows:
       - upload:
           context: vagrant-test
           requires:
-            - substrate
             - package
           filters:
             branches:
