@@ -29,13 +29,13 @@ reference:
             command: |
               set +e
               if [ "${CIRCLE_TAG}" != "" ]; then
-                s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
+                s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
               else
-                s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+                s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
               fi
               mkdir -p assets
               mv ./substrate-assets/* ./assets/
-              aws s3 cp --recursive ./assets/* "${s3_dst}" 2>&1 | tee .output
+              aws s3 cp --recursive ./assets/ "${s3_dst}" 2>&1 | tee .output
               result=$?
               if [ $result -ne 0 ]; then
                 SLACK_STATE=$SLACK_ERROR
