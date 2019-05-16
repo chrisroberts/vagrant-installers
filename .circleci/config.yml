@@ -5,7 +5,7 @@ reference:
       - image: circleci/python:stretch
   environment: &ENVIRONMENT
     packet_exec_version: "0.1.1"
-    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-16/72c9e970
+    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-16/8f8dc89e
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -135,7 +135,7 @@ jobs:
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
               chmod 600 /tmp/packet-key
               export PKT_VAGRANT_BUILD_TYPE="substrate"
-              export PKT_PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+              export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
               ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh 2>&1 | tee .output
               result=$?
               rm /tmp/packet-key
@@ -160,13 +160,13 @@ jobs:
           at: .
       - run:
           name: Build packages
-          no_output_timeout: 30m
+          no_output_timeout: 1h
           command: |
             set +e
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
             export PKT_VAGRANT_BUILD_TYPE="package"
-            export PKT_PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
             ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 | tee .output
             result=$?
             rm /tmp/packet-key
