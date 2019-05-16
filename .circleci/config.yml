@@ -189,7 +189,10 @@ jobs:
             mkdir -p substrate-assets
             aws s3 ls "${s3_dst}" | grep "substrate"
             if [ $? -eq 0 ]; then
+              echo "Downloading existing substrates..."
               aws s3 cp --recursive "${s3_dst}" ./substrate-assets/
+            else
+              echo "No existing substrates found. (location: ${s3_dst})"
             fi
       - persist_to_workspace:
           root: .
@@ -230,6 +233,7 @@ workflows:
           context: vagrant-test
           requires:
             - setup
+            - existing_substrates
           filters:
             branches:
               ignore: master
