@@ -5,7 +5,7 @@ reference:
       - image: circleci/python:stretch
   environment: &ENVIRONMENT
     packet_exec_version: "0.1.1"
-    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-16/8c9c0df0
+    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-16/72c9e970
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -14,7 +14,6 @@ reference:
     PACKET_EXEC_PREFER_FACILITIES: ewr1,iad1,ord1,dfw1,ams1,atl1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
     PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware,LoadSecrets
-    PACKET_EXEC_TMPFS_PATH: /run
   copypasta:
     upload: &UPLOAD
       environment:
@@ -36,6 +35,7 @@ reference:
               mkdir -p assets
               mv ./substrate-assets/* ./assets/
               pushd ./assets
+              uploads=""
               for file in * ; do
                 aws s3 ls "${s3_dst}${file}"
                 if [ $? -ne 0 ]; then
@@ -46,10 +46,13 @@ reference:
                     eval $SLACK_EXECUTE
                     exit 1
                   fi
+                  uploads="${uploads}\n${file}"
                 fi
               done
-              SLACK_MESSAGE="New installers assets available:\n\n* ${s3_dst}"
-              eval $SLACK_EXECUTE
+              if [ "${uploads}" != "" ]; then
+                SLACK_MESSAGE="New installers assets available:\n\n${uploads}\n\n  -> ${s3_dst}"
+                eval $SLACK_EXECUTE
+              fi
               exit
 
 
