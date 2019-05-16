@@ -5,7 +5,7 @@ reference:
       - image: circleci/python:stretch
   environment: &ENVIRONMENT
     packet_exec_version: "0.1.1"
-    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-16/4b4dab7b
+    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-16/8c9c0df0
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -35,16 +35,22 @@ reference:
               fi
               mkdir -p assets
               mv ./substrate-assets/* ./assets/
-              aws s3 cp --recursive ./assets/ "${s3_dst}" 2>&1 | tee .output
-              result=$?
-              if [ $result -ne 0 ]; then
-                SLACK_STATE=$SLACK_ERROR
-                SLACK_MESSAGE="Failed to upload installer assets\n\n\`\`\`$(cat .output)\`\`\`"
-              else
-                SLACK_MESSAGE="New installers assets available:\n\n* ${s3_dst}"
-              fi
+              pushd ./assets
+              for file in * ; do
+                aws s3 ls "${s3_dst}${file}"
+                if [ $? -ne 0 ]; then
+                  aws s3 cp "${file}" "${s3_dst}" 2>&1 | tee .output
+                  if [ $? -ne 0 ]; then
+                    SLACK_STATE=$SLACK_ERROR
+                    SLACK_MESSAGE="Failed to upload installer asset \`${file}\`\n\n\`\`\`$(cat .output)\`\`\`"
+                    eval $SLACK_EXECUTE
+                    exit 1
+                  fi
+                fi
+              done
+              SLACK_MESSAGE="New installers assets available:\n\n* ${s3_dst}"
               eval $SLACK_EXECUTE
-              exit $result
+              exit
 
 
 jobs:
