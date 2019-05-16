@@ -61,6 +61,10 @@ Vagrant.configure("2") do |config|
         box_config.vm.communicator = 'winrm'
       end
 
+      if ENV["PACKET_EXEC"]
+        config.vm.synced_folder ".", "/vagrant", disabled: true
+      end
+
       config.vm.provider :vmware_desktop do |v|
         v.ssh_info_public = true
         v.vmx["memsize"] = ENV.fetch("VAGRANT_GUEST_MEMORY_#{script_name.upcase}", ENV.fetch("VAGRANT_GUEST_MEMORY", "4096"))

@@ -134,7 +134,7 @@ jobs:
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
               chmod 600 /tmp/packet-key
               export PKT_VAGRANT_BUILD_TYPE="substrate"
-              export PKT_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+              export PKT_PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
               ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh 2>&1 | tee .output
               result=$?
               rm /tmp/packet-key
@@ -164,7 +164,7 @@ jobs:
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
             export PKT_VAGRANT_BUILD_TYPE="package"
-            export PKT_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+            export PKT_PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
             ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 | tee .output
             result=$?
             rm /tmp/packet-key
