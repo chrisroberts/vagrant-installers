@@ -127,6 +127,7 @@ jobs:
           at: .
       - run:
           name: Build substrates
+          no_output_timeout: 30m
           command: |
             set +e
             ls ./substrate-assets/* | grep substrate 2>&1 > /dev/null
@@ -159,6 +160,7 @@ jobs:
           at: .
       - run:
           name: Build packages
+          no_output_timeout: 30m
           command: |
             set +e
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
