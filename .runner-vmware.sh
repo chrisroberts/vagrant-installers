@@ -38,24 +38,18 @@ vagrant up --no-provision
 declare -A upids
 
 if [ "${PACKET_EXEC}" == "1" ]; then
-    for guest in ${guests}
-    do
-        vagrant upload . /vagrant ${guest} 2>&1 > .output-${guest} &
-        upids[$guest]=$!
-        tail --quiet --pid ${upids[$guest]} -f .output-${guest} &
-    done
-
-    for guest in ${guests}
-    do
-        wait ${upids[$guest]}
-        if [ $? -ne 0 ]; then
-            echo "Upload failed to guest: ${guest}"
-            cat .output-${guest}
-            exit 1
-        else
-            echo "Upload to guest ${guest} complete"
-        fi
-    done
+    # macos uploads
+    if [ -f "MacOS_PkgSigning.cert" ]; then
+        vagrant upload MacOS_PkgSigning.cert "~/" osx-10.9
+        vagrant upload MacOS_PkgSigning.key "~/" osx-10.9
+        export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_CERT_PATH="~/MacOS_PkgSigning.cert"
+        export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_KEY_PATH="~/MacOS_PkgSigning.key"
+    fi
+    # win uploads
+    if [ -f "Win_CodeSigning.p12" ]; then
+        vagrant upload Win_CodeSigning.p12 "~/" win-7
+        export VAGRANT_INSTALLER_SignKeyPath="C:\\Users\\vagrant\\Win_CodeSigning.p12"
+    fi
 fi
 
 set +e
