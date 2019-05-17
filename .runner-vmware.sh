@@ -38,11 +38,11 @@ vagrant up --no-provision
 declare -A upids
 
 if [ "${PACKET_EXEC}" == "1" ]; then
-    mv substrate-assets .substrate-assets
     for guest in ${guests}
     do
-        vagrant upload ${guest} . /vagrant | tee .output-${guest} &
+        vagrant upload . /vagrant ${guest} 2>&1 > .output-${guest} &
         upids[$guest]=$!
+        tail --quiet --pid ${upids[$guest]} -f .output-${guest} &
     done
 
     for guest in ${guests}
@@ -56,7 +56,6 @@ if [ "${PACKET_EXEC}" == "1" ]; then
             echo "Upload to guest ${guest} complete"
         fi
     done
-    mv .substrate-assets substrate-assets
 fi
 
 set +e
@@ -64,8 +63,9 @@ declare -A pids
 
 for guest in ${guests}
 do
-    vagrant provision ${guest} 2>&1 | tee .output-${guest} &
+    vagrant provision ${guest} 2>&1 > .output-${guest} &
     pids[$guest]=$!
+    tail --quiet --pid ${pids[$guest]} -f .output-${guest} &
     sleep 10
 done
 
