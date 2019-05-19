@@ -2,6 +2,14 @@
 
 function cleanup {
     vagrant destroy --force > /dev/null 2>&1
+    for logfile in `ls .output-*`
+    do
+        guest="${logfile##output-}"
+        (>&2 echo "Failed to provision: ${guest}")
+        sed -i -E '/^[[:space:]]+from \//d' "${logfile}"
+        output=$(tail -n 5 "${logfile}")
+        (>&2 echo "${output}")
+    done
 }
 
 function keepalive {
@@ -71,10 +79,10 @@ kp=$!
 for guest in ${guests}
 do
     wait ${pids[$guest]}
-    if [ $? -ne 0 ]
+    result=$?
+    if [ $result -ne 0 ]
     then
         echo "Provision failure for: ${guest}"
-        result=1
     else
         echo "Provision complete for: ${guest}"
         rm .output-${guest}
@@ -83,24 +91,15 @@ done
 
 pkill -P $kp
 kill $kp
+mkdir -p assets
 
 if [ $result -eq 0 ]; then
-    mkdir -p assets
-
     if [ "${VAGRANT_BUILD_TYPE}" = "package" ]
     then
         mv -f pkg/* assets/
     else
         mv -f substrate-assets/* assets/
     fi
-else
-    for logfile in `ls .output-*`
-    do
-        guest=$(echo "${logfile}" | sed 's/.output-//')
-        (>&2 echo "Failed to provision: ${guest}")
-        output=$(cat "${logfile}" | sed -E '/^[[:space:]]+from \//d' | tail -n 5)
-        (>&2 echo "${output}")
-    done
 fi
 
 exit $result

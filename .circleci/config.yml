@@ -1,11 +1,12 @@
 version: 2
 reference:
   images:
-    aws: &aws_image
-      - image: circleci/python:stretch
+    packet_exec: &packet_exec
+      - image: quay.io/hashicorp/packet-exec:master
+        auth:
+          username: $QUAY_USERNAME
+          password: $QUAY_PASSWORD
   environment: &ENVIRONMENT
-    packet_exec_version: "0.1.1"
-    packet_exec_prefix: s3://vagrant-ci-private/elt/hashicorp/packet-exec/master/2019-05-16/8f8dc89e
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -18,11 +19,10 @@ reference:
     upload: &UPLOAD
       environment:
         <<: *ENVIRONMENT
-      docker: *aws_image
+      docker: *packet_exec
       steps:
         - attach_workspace:
             at: .
-        - run: sudo pip install awscli
         - run:
             name: Upload packages
             command: |
@@ -43,28 +43,22 @@ reference:
                   result=$?
                   cat .output
                   if [ $result -ne 0 ]; then
-                    SLACK_STATE=$SLACK_ERROR
-                    SLACK_MESSAGE="Failed to upload installer asset \`${file}\`\n\n\`\`\`$(cat .output)\`\`\`"
-                    eval $SLACK_EXECUTE
+                    slack -s error -m "Failed to upload installer asset \`${file}\`" -f .output
                     exit 1
                   fi
                   uploads="${uploads}\n${file}"
                 fi
               done
               if [ "${uploads}" != "" ]; then
-                SLACK_MESSAGE="New installers assets available:\n\n${uploads}\n\n  -> ${s3_dst}"
-                eval $SLACK_EXECUTE
+                slack -m "New installer assets available:\n\n${uploads}\n\n>${s3_dst}"
               fi
               exit
-
-
 jobs:
   init:
     environment:
       <<: *ENVIRONMENT
-    docker: *aws_image
+    docker: *packet_exec
     steps:
-      - run: sudo pip install awscli
       - run:
           name: Fetch Vagrant RubyGem
           command: |
@@ -74,59 +68,38 @@ jobs:
             result=$?
             cat .output
             if [ $result -ne 0 ]; then
-              SLACK_STATE=$SLACK_ERROR
-              SLACK_MESSAGE="Failed to download Vagrant RubyGem\n\n\`\`\`$(cat .output)\`\`\`"
-              eval $SLACK_EXECUTE
+              slack -s error -m "Failed to download Vagrant RubyGem" -f .output
             fi
-            exit $result
-      - run:
-          name: Fetch packet-exec
-          command: |
-            packet_exec_prefix=${packet_exec_prefix:-"${ASSETS_PRIVATE_BUCKET}/hashicorp/packet-exec/v${packet_exec_version}"}
-            aws s3 cp ${packet_exec_prefix}/packet-exec_linux_amd64 packet-exec 2>&1 > .output
-            result=$?
-            cat .output
-            if [ $result -ne 0 ]; then
-              SLACK_STATE=$SLACK_ERROR
-              SLACK_MESSAGE="Failed to download packet-exec utility\n\n\`\`\`$(cat .output)\`\`\`"
-              eval $SLACK_EXECUTE
-            fi
-            chmod 755 ./packet-exec
             exit $result
       - persist_to_workspace:
           root: .
           paths:
             - ./*.gem
-            - packet-exec
   setup:
     environment:
       <<: *ENVIRONMENT
-    docker: *aws_image
+    docker: *packet_exec
     steps:
-      - attach_workspace:
-          at: .
       - run:
           name: Create packet device
           command: |
             set +e
-            ./packet-exec info
+            packet-exec info
             if [ $? -eq 0 ]; then
               exit
             fi
-            ./packet-exec create 2>&1 > .output &
+            packet-exec create 2>&1 > .output &
             pid=$!
             tail --quiet --pid $pid -f .output &
             wait $pid
             if [ $? -ne 0 ]; then
-              SLACK_STATE=$SLACK_ERROR
-              SLACK_MESSAGE="Failed to create remote packet device\n\n\`\`\`$(cat .output)\`\`\`"
-              eval $SLACK_EXECUTE
+              slack -s error -m "Failed to create remote packet device" -f .output
             fi
             exit $result
   substrate:
     environment:
       <<: *ENVIRONMENT
-    docker: *aws_image
+    docker: *packet_exec
     steps:
       - checkout
       - attach_workspace:
@@ -142,16 +115,14 @@ jobs:
               chmod 600 /tmp/packet-key
               export PKT_VAGRANT_BUILD_TYPE="substrate"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-              ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh 2>&1 > .output &
+              packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh 2>&1 > .output &
               pid=$!
               tail --quiet --pid $pid -f .output &
               wait $pid
               result=$?
               rm /tmp/packet-key
               if [ $result -ne 0 ]; then
-                SLACK_STATE=$SLACK_ERROR
-                SLACK_MESSAGE="Failed to build Vagrant substrates\n\n\`\`\`$(tail .output)\`\`\`"
-                eval $SLACK_EXECUTE
+                slack -s error -m "Failed to build Vagrant substrates" -f .output -T 5
               fi
               exit $result
             fi
@@ -162,7 +133,7 @@ jobs:
   package:
     environment:
       <<: *ENVIRONMENT
-    docker: *aws_image
+    docker: *packet_exec
     steps:
       - checkout
       - attach_workspace:
@@ -176,7 +147,7 @@ jobs:
             chmod 600 /tmp/packet-key
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-            ./packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 > .output &
+            packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 > .output &
             pid=$!
             tail --quiet --pid $pid -f .output &
             wait $pid
@@ -185,9 +156,7 @@ jobs:
             mkdir -p assets
             mv substrate-assets/* assets/
             if [ $result -ne 0 ]; then
-              SLACK_STATE=$SLACK_ERROR
-              SLACK_MESSAGE="Failed to build Vagrant installer packages\n\n\`\`\`$(tail .output)\`\`\`"
-              eval $SLACK_EXECUTE
+              slack -s error -m "Failed to build Vagrant installer packages" -f .output .T 5
             fi
             exit $result
       - persist_to_workspace:
@@ -197,9 +166,8 @@ jobs:
   existing_substrates:
     environment:
       <<: *ENVIRONMENT
-    docker: *aws_image
+    docker: *packet_exec
     steps:
-      - run: sudo pip install awscli
       - run:
           name: Check for existing substrates
           command: |
@@ -238,8 +206,6 @@ workflows:
               only: /.*/
       - setup:
           context: vagrant-test
-          requires:
-            - init
           filters:
             branches:
               ignore: master
