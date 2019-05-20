@@ -70,8 +70,6 @@ jobs:
             if [ $result -ne 0 ]; then
               slack -s error -m "Failed to download Vagrant RubyGem" -f .output
             fi
-            echo "Check local FS state"
-            ls -l
             exit $result
       - persist_to_workspace:
           root: .
@@ -111,8 +109,6 @@ jobs:
           no_output_timeout: 30m
           command: |
             set +e
-            echo "Check local FS state"
-            ls -l
             ls ./substrate-assets/* | grep substrate 2>&1 > /dev/null
             if [ $? -ne 0 ]; then
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
@@ -152,9 +148,6 @@ jobs:
             chmod 600 /tmp/packet-key
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-            echo "Check local FS state"
-            ls -l
-            exit 1
             packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh > .output 2>&1 &
             pid=$!
             tail --quiet --pid $pid -f .output &
