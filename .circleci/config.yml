@@ -248,6 +248,7 @@ workflows:
       - package:
           context: vagrant-test
           requires:
+            - init
             - setup
             - substrate
           filters:
