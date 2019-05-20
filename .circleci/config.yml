@@ -130,6 +130,7 @@ jobs:
           root: .
           paths:
             - ./substrate-assets/
+            - ./*.gem
   package:
     environment:
       <<: *ENVIRONMENT
@@ -156,7 +157,7 @@ jobs:
             mkdir -p assets
             mv substrate-assets/* assets/
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to build Vagrant installer packages" -f .output .T 5
+              slack -s error -m "Failed to build Vagrant installer packages" -f .output -T 5
             fi
             exit $result
       - persist_to_workspace:
