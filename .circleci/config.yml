@@ -39,7 +39,7 @@ reference:
               for file in * ; do
                 aws s3 ls "${s3_dst}${file}"
                 if [ $? -ne 0 ]; then
-                  aws s3 cp "${file}" "${s3_dst}" 2>&1 > .output
+                  aws s3 cp "${file}" "${s3_dst}" > .output 2>&1
                   result=$?
                   cat .output
                   if [ $result -ne 0 ]; then
@@ -64,7 +64,7 @@ jobs:
           command: |
             set +e
             version=$(echo "${CIRCLE_TAG:-master}" | sed 's/^v//')
-            aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant-${version}.gem 2>&1 > .output
+            aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant-${version}.gem > .output 2>&1
             result=$?
             cat .output
             if [ $result -ne 0 ]; then
@@ -88,7 +88,7 @@ jobs:
             if [ $? -eq 0 ]; then
               exit
             fi
-            packet-exec create 2>&1 > .output &
+            packet-exec create > .output 2>&1 &
             pid=$!
             tail --quiet --pid $pid -f .output &
             wait $pid
@@ -115,7 +115,7 @@ jobs:
               chmod 600 /tmp/packet-key
               export PKT_VAGRANT_BUILD_TYPE="substrate"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-              packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh 2>&1 > .output &
+              packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh > .output 2>&1 &
               pid=$!
               tail --quiet --pid $pid -f .output &
               wait $pid
@@ -148,7 +148,9 @@ jobs:
             chmod 600 /tmp/packet-key
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-            packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh 2>&1 > .output &
+            echo "Check local FS state"
+            ls -l
+            packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh > .output 2>&1 &
             pid=$!
             tail --quiet --pid $pid -f .output &
             wait $pid
