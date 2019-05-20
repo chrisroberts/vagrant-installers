@@ -73,8 +73,8 @@ done
 
 result=0
 
-keepalive &
-kp=$!
+# keepalive &
+# kp=$!
 
 for guest in ${guests}
 do
@@ -89,8 +89,8 @@ do
     fi
 done
 
-pkill -P $kp
-kill $kp
+# pkill -P $kp
+# kill $kp
 mkdir -p assets
 
 if [ $result -eq 0 ]; then
