@@ -59,7 +59,7 @@ reference:
               result=$?
               rm /tmp/packet-key
               if [ $result -ne 0 ]; then
-                slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 5
+                slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 10
               fi
               exit $result
             fi
@@ -94,7 +94,7 @@ reference:
               mkdir -p assets
               mv substrate-assets/* assets/
               if [ $result -ne 0 ]; then
-                slack -s error -m "Failed to build Vagrant installer packages" -f /tmp/cmd-output -T 5
+                slack -s error -m "Failed to build Vagrant installer packages" -f /tmp/cmd-output -T 10
               fi
               exit $result
         - persist_to_workspace:
@@ -176,6 +176,9 @@ jobs:
             fi
             packet-exec create > /tmp/cmd-output 2>&1 &
             pid=$!
+            until [ -f /tmp/cmd-output ]; do
+              sleep 0.1
+            done
             tail --quiet --pid $pid -f /tmp/cmd-output &
             wait $pid
             if [ $? -ne 0 ]; then
@@ -202,11 +205,12 @@ jobs:
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
             done
+            tail -f --quiet --pid $pid /tmp/cmd-output
             wait $pid
             result=$?
             rm /tmp/packet-key
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 5
+              slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 10
             fi
             exit $result
   restart_guests:
@@ -231,10 +235,11 @@ jobs:
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
             done
+            tail -f --quiet --pid $pid /tmp/cmd-output
             wait $pid
             result=$?
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 5
+              slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 10
               exit $result
             fi
             packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
@@ -242,10 +247,11 @@ jobs:
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
             done
+            tail -f --quiet --pid $pid /tmp/cmd-output
             wait $pid
             result=$?
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 5
+              slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 10
             fi
             rm /tmp/packet-key
             exit $result
@@ -269,10 +275,11 @@ jobs:
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
             done
+            tail -f --quiet --pid $pid /tmp/cmd-output
             wait $pid
             result=$?
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 5
+              slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 10
             fi
             rm /tmp/packet-key
             exit $result
