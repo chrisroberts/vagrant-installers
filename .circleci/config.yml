@@ -15,7 +15,6 @@ reference:
     PACKET_EXEC_DEVICE_SIZE: baremetal_1
     PACKET_EXEC_PREFER_FACILITIES: ewr1,iad1,ord1,dfw1,ams1,atl1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
-    PACKET_EXEC_REMOTE_DIRECTORY: ${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}
   copypasta:
     default_workflow: &DEFAULT_WORKFLOW
       context: vagrant-test
@@ -48,6 +47,7 @@ reference:
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
               chmod 600 /tmp/packet-key
               export PKT_VAGRANT_BUILD_TYPE="substrate"
+              export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
               packet-exec run -ssh-key /tmp/packet-key -download "./substrate-assets/*:./substrate-assets" -- ./.runner-vmware.sh > .output 2>&1 &
               pid=$!
               until [ -f .output ]; do
@@ -194,6 +194,7 @@ jobs:
             chmod 600 /tmp/packet-key
             # package type will start all available guests
             export PACKET_EXEC_PRE_BUILTINS="InstallVmware,InstallVagrant,InstallVagrantVmware,LoadSecrets"
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
             export PKT_VAGRANT_BUILD_TYPE="package"
             packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > .output 2>&1 &
             pid=$!
@@ -220,6 +221,7 @@ jobs:
             chmod 600 /tmp/packet-key
             # package type will start all available guests
             export PKT_VAGRANT_BUILD_TYPE="package"
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
             packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > .output 2>&1 &
             pid=$!
             until [ -f .output ]; do
@@ -256,6 +258,7 @@ jobs:
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
             unset PACKET_EXEC_PERSIST
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
             export PKT_VAGRANT_BUILD_TYPE="package"
             packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > .output 2>&1 &
             pid=$!
