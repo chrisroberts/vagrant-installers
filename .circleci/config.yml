@@ -48,7 +48,7 @@ reference:
               fname=$(aws s3 ls "${s3_dst}" | grep "substrate_${os}.*${arch}.zip" | awk '{print $4}')
               mkdir -p substrate-assets
               if [ "${fname}" != "" ]; then
-                aws s3 cp "${s3_dst}/${fname}" ./substrate-assets/
+                aws s3 cp "${s3_dst}${fname}" ./substrate-assets/
               else
                 echo "Substrate not found - building..."
                 echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
