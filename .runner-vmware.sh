@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 function cleanup {
-    vagrant destroy --force > /dev/null 2>&1
+    if [ "${VAGRANT_AUTO_DESTROY}" == "1" ]; then
+        vagrant destroy --force > /dev/null 2>&1
+    fi
     for logfile in `ls .output-*`
     do
         guest="${logfile##output-}"
@@ -48,15 +50,19 @@ declare -A upids
 if [ "${PACKET_EXEC}" == "1" ]; then
     # macos uploads
     if [ -f "MacOS_PkgSigning.cert" ]; then
-        vagrant upload MacOS_PkgSigning.cert "~/" osx-10.9
-        vagrant upload MacOS_PkgSigning.key "~/" osx-10.9
-        export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_CERT_PATH="~/MacOS_PkgSigning.cert"
-        export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_KEY_PATH="~/MacOS_PkgSigning.key"
+        if [[ "${guests[*]}" = *"osx-10.9"* ]]; then
+            vagrant upload MacOS_PkgSigning.cert "~/" osx-10.9
+            vagrant upload MacOS_PkgSigning.key "~/" osx-10.9
+            export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_CERT_PATH="~/MacOS_PkgSigning.cert"
+            export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_KEY_PATH="~/MacOS_PkgSigning.key"
+        fi
     fi
     # win uploads
     if [ -f "Win_CodeSigning.p12" ]; then
-        vagrant upload Win_CodeSigning.p12 "~/" win-7
-        export VAGRANT_INSTALLER_SignKeyPath="C:\\Users\\vagrant\\Win_CodeSigning.p12"
+        if [[ "${guests[*]}" = *"win-7"* ]]; then
+            vagrant upload Win_CodeSigning.p12 "~/" win-7
+            export VAGRANT_INSTALLER_SignKeyPath="C:\\Users\\vagrant\\Win_CodeSigning.p12"
+        fi
     fi
 fi
 

@@ -15,7 +15,92 @@ reference:
     PACKET_EXEC_PREFER_FACILITIES: ewr1,iad1,ord1,dfw1,ams1,atl1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
     PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware,LoadSecrets
+    PACKET_EXEC_REMOTE_DIRECTORY: "${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
   copypasta:
+    default_workflow: &DEFAULT_WORKFLOW
+      context: vagrant-test
+      filters:
+        branches:
+          ignore: master
+        tags:
+          only: /.*/
+
+    substrate: &SUBSTRATE
+      docker: *packet_exec
+      steps:
+        - checkout
+        - attach_workspace:
+            at: .
+        - run:
+            name: Build substrate
+            no_output_timeout: 30m
+          command: |
+            set +e
+            os="${guest%%-*}"
+            arch="${guest##*-}"
+            arch="${arch//3/6}"
+            if [ "${arch}" != "i686" ]; then
+              arch="64"
+            fi
+            ls ./substrate-assets/substrate_${os}*${arch}.zip 2>&1 > /dev/null
+            if [ $? -ne 0 ]; then
+              echo "Substrate not found - building..."
+              echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+              chmod 600 /tmp/packet-key
+              export PKT_VAGRANT_BUILD_TYPE="substrate"
+              packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh > .output 2>&1 &
+              pid=$!
+              until [ -f .output ]; do
+                sleep 0.1
+              done
+              tail --quiet --pid $pid -f .output &
+              wait $pid
+              result=$?
+              rm /tmp/packet-key
+              if [ $result -ne 0 ]; then
+                slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f .output -T 5
+              fi
+              exit $result
+            fi
+        - persist_to_workspace:
+            root: .
+            paths:
+              - ./substrate-assets/
+    package: &PACKAGE
+      docker: *packet_exec
+      steps:
+        - checkout
+        - attach_workspace:
+            at: .
+        - run:
+            name: Build packages
+            no_output_timeout: 1h
+            command: |
+              set +e
+              echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+              chmod 600 /tmp/packet-key
+              export PKT_VAGRANT_BUILD_TYPE="package"
+              export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+              packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh > .output 2>&1 &
+              pid=$!
+              until [ -f .output ]; do
+                sleep 0.1
+              done
+              tail --quiet --pid $pid -f .output &
+              wait $pid
+              result=$?
+              rm /tmp/packet-key
+              mkdir -p assets
+              mv substrate-assets/* assets/
+              if [ $result -ne 0 ]; then
+                slack -s error -m "Failed to build Vagrant installer packages" -f .output -T 5
+              fi
+              exit $result
+        - persist_to_workspace:
+            root: .
+            paths:
+              - ./assets/
+
     upload: &UPLOAD
       environment:
         <<: *ENVIRONMENT
@@ -54,7 +139,7 @@ reference:
               fi
               exit
 jobs:
-  init:
+  load_gem:
     environment:
       <<: *ENVIRONMENT
     docker: *packet_exec
@@ -75,7 +160,7 @@ jobs:
           root: .
           paths:
             - ./*.gem
-  setup:
+  packet_device:
     environment:
       <<: *ENVIRONMENT
     docker: *packet_exec
@@ -96,74 +181,101 @@ jobs:
               slack -s error -m "Failed to create remote packet device" -f .output
             fi
             exit $result
-  substrate:
+  start_guests:
     environment:
       <<: *ENVIRONMENT
     docker: *packet_exec
     steps:
-      - checkout
-      - attach_workspace:
-          at: .
       - run:
-          name: Build substrates
-          no_output_timeout: 30m
-          command: |
-            set +e
-            ls ./substrate-assets/* | grep substrate 2>&1 > /dev/null
-            if [ $? -ne 0 ]; then
-              echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-              chmod 600 /tmp/packet-key
-              export PKT_VAGRANT_BUILD_TYPE="substrate"
-              export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-              packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./substrate-assets" -- ./.runner-vmware.sh > .output 2>&1 &
-              pid=$!
-              tail --quiet --pid $pid -f .output &
-              wait $pid
-              result=$?
-              rm /tmp/packet-key
-              if [ $result -ne 0 ]; then
-                slack -s error -m "Failed to build Vagrant substrates" -f .output -T 5
-              fi
-              exit $result
-            fi
-      - persist_to_workspace:
-          root: .
-          paths:
-            - ./substrate-assets/
-            - ./*.gem
-  package:
-    environment:
-      <<: *ENVIRONMENT
-    docker: *packet_exec
-    steps:
-      - checkout
-      - attach_workspace:
-          at: .
-      - run:
-          name: Build packages
-          no_output_timeout: 1h
+          name: Start packet guests
           command: |
             set +e
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
+            # package type will start all available guests
             export PKT_VAGRANT_BUILD_TYPE="package"
-            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-            packet-exec run -ssh-key /tmp/packet-key -upload -download "./assets/*:./assets" -- ./.runner-vmware.sh > .output 2>&1 &
+            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > .output 2>&1 &
             pid=$!
-            tail --quiet --pid $pid -f .output &
+            until [ -f .output ]; do
+              sleep 0.1
+            done
             wait $pid
             result=$?
             rm /tmp/packet-key
-            mkdir -p assets
-            mv substrate-assets/* assets/
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to build Vagrant installer packages" -f .output -T 5
+              slack -s error -m "Failed to start builder guests on packet device" -f .output -T 5
             fi
             exit $result
-      - persist_to_workspace:
-          root: .
-          paths:
-            - ./assets/
+  substrate_centos-6:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: centos-6
+    <<: *SUBSTRATE
+  substrate_centos-6-i386:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: centos-6-i386
+    <<: *SUBSTRATE
+  substrate_osx-10.9:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: osx-10.9
+    <<: *SUBSTRATE
+  substrate_ubuntu-14.04-i386:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: ubuntu-14.04-i386
+    <<: *SUBSTRATE
+  substrate_ubuntu-14.04:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: ubuntu-14.04
+    <<: *SUBSTRATE
+  substrate_win-7:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: win-7
+    <<: *SUBSTRATE
+  package_appimage:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: appimage
+    <<: *PACKAGE
+  package_archlinux:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: archlinux
+    <<: *PACKAGE
+  package_centos-6:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: centos-6
+    <<: *PACKAGE
+  package_centos-6-i386:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: centos-6-i386
+    <<: *PACKAGE
+  package_osx-10.9:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: osx-10.9
+    <<: *PACKAGE
+  package_ubuntu-14.04:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: ubuntu-14.04
+    <<: *PACKAGE
+  package_ubuntu-14.04-i386:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: ubuntu-14.04-i386
+    <<: *PACKAGE
+  package_win-7:
+    environment:
+      <<: *ENVIRONMENT
+      PKT_VAGRANT_ONLY_BOXES: win-7
+    <<: *PACKAGE
   existing_substrates:
     environment:
       <<: *ENVIRONMENT
@@ -198,63 +310,96 @@ workflows:
   version: 2
   package:
     jobs:
-      - init:
-          context: vagrant-test
-          filters:
-            branches:
-              ignore: master
-            tags:
-              only: /.*/
-      - setup:
-          context: vagrant-test
-          filters:
-            branches:
-              ignore: master
-            tags:
-              only: /.*/
+      - load_gem:
+          <<: *DEFAULT_WORKFLOW
+      - packet_device:
+          <<: *DEFAULT_WORKFLOW
       - existing_substrates:
-          context: vagrant-test
-          filters:
-            branches:
-              ignore: master
-            tags:
-              only: /.*/
-      - substrate:
-          context: vagrant-test
+          <<: *DEFAULT_WORKFLOW
+      - start_guests:
+          <<: *DEFAULT_WORKFLOW
           requires:
-            - setup
+            - packet_device
+      - substrate_centos-6:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
             - existing_substrates
-          filters:
-            branches:
-              ignore: master
-            tags:
-              only: /.*/
+      - substrate_centos-6-i386:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - existing_substrates
+      - substrate_osx-10.9:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - existing_substrates
+      - substrate_ubuntu-14.04-i386:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - existing_substrates
+      - substrate_ubuntu-14.04:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - existing_substrates
+      - substrate_win-7:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - existing_substrates
+      - package_appimage:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+      - package_archlinux:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+      - package_centos-6:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - substrate_centos-6
+      - package_centos-6-i386:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - substrate_centos-6-i386
+      - package_osx-10.9:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - substrate_osx-10.9
+      - package_ubuntu-14.04-i386:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - substrate_ubuntu-14.04-i386
+      - package_win-7:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - substrate_win-7
       - upload_substrates:
-          context: vagrant-test
+          <<: *DEFAULT_WORKFLOW
           requires:
-            - substrate
-          filters:
-            branches:
-              ignore: master
-            tags:
-              only: /.*/
-      - package:
-          context: vagrant-test
-          requires:
-            - init
-            - setup
-            - substrate
-          filters:
-            branches:
-              ignore: master
-            tags:
-              only: /.*/
+            - substrate_centos-6
+            - substrate_centos-6-i386
+            - substrate_osx-10.9
+            - substrate_ubuntu-14.04-i386
+            - substrate_ubuntu-14.04
+            - substrate_win-7
       - upload_packages:
-          context: vagrant-test
+          <<: *DEFAULT_WORKFLOW
           requires:
-            - package
-          filters:
-            branches:
-              ignore: master
-            tags:
-              only: /.*/
+            - package_appimage
+            - package_archlinux
+            - package_centos-6
+            - package_centos-6-i386
+            - package_osx-10.9
+            - package_ubuntu-14.04
+            - package_ubuntu-14.04-i386
+            - package_win-7
