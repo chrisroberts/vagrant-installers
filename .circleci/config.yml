@@ -59,7 +59,7 @@ reference:
                 echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
                 chmod 600 /tmp/packet-key
                 export PKT_VAGRANT_BUILD_TYPE="substrate"
-                export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+                export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_WORKFLOW_ID}"
                 packet-exec run -ssh-key /tmp/packet-key -download "./substrate-assets/*:./substrate-assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
                 pid=$!
                 until [ -f /tmp/cmd-output ]; do
@@ -94,7 +94,7 @@ reference:
               pkg_dir=$(basename $(mktemp -u))
               export PKT_VAGRANT_BUILD_TYPE="package"
               export PKT_VAGRANT_INSTALLERS_VAGRANT_PACKAGE_OUTPUT_DIR="${pkg_dir}"
-              export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+              export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_WORKFLOW_ID}"
               packet-exec run -ssh-key /tmp/packet-key -download "./${pkg_dir}/*:./assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
               pid=$!
               until [ -f /tmp/cmd-output ]; do
@@ -211,7 +211,7 @@ jobs:
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
             # package type will start all available guests
-            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
             packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
@@ -242,7 +242,7 @@ jobs:
             chmod 600 /tmp/packet-key
             # package type will start all available guests
             export PKT_VAGRANT_BUILD_TYPE="package"
-            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_WORKFLOW_ID}"
             packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
@@ -281,7 +281,7 @@ jobs:
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
             unset PACKET_EXEC_PERSIST
-            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
             packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
             pid=$!
