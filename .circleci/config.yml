@@ -451,6 +451,15 @@ workflows:
           requires:
             - restart_guests
             - substrate_win-7
+      - restart_guests:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - substrate_centos-6
+            - substrate_centos-6-i386
+            - substrate_osx-10.9
+            - substrate_ubuntu-14.04-i386
+            - substrate_ubuntu-14.04
+            - substrate_win-7
       - upload_substrates:
           <<: *DEFAULT_WORKFLOW
           requires:
