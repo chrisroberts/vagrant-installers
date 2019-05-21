@@ -29,8 +29,6 @@ reference:
       docker: *packet_exec
       steps:
         - checkout
-        - attach_workspace:
-            at: .
         - run:
             name: Build substrate
             no_output_timeout: 30m
@@ -42,8 +40,16 @@ reference:
               if [ "${arch}" != "i686" ]; then
                 arch="64"
               fi
-              ls ./substrate-assets/substrate_${os}*${arch}.zip 2>&1 > /dev/null
-              if [ $? -ne 0 ]; then
+              if [ "${CIRCLE_TAG}" != "" ]; then
+                s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+              else
+                s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
+              fi
+              fname=$(aws s3 ls "${s3_dst}" | grep "substrate_${os}.*${arch}.zip" | awk '{print $4}')
+              mkdir -p substrate-assets
+              if [ "${fname}" != "" ]; then
+                aws s3 cp "${s3_dst}/${fname}" ./substrate-assets/
+              else
                 echo "Substrate not found - building..."
                 echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
                 chmod 600 /tmp/packet-key
@@ -66,7 +72,7 @@ reference:
         - persist_to_workspace:
             root: .
             paths:
-              - ./substrate-assets/
+              - ./substrate-assets/*
     package: &PACKAGE
       docker: *packet_exec
       steps:
@@ -80,9 +86,11 @@ reference:
               set +e
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
               chmod 600 /tmp/packet-key
+              pkg_dir=$(basename $(mktemp -u))
               export PKT_VAGRANT_BUILD_TYPE="package"
+              export PKT_VAGRANT_INSTALLERS_VAGRANT_PACKAGE_OUTPUT_DIR="${pkg_dir}"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-              packet-exec run -ssh-key /tmp/packet-key -download "./assets/*:./assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
+              packet-exec run -ssh-key /tmp/packet-key -download "./${pkg_dir}/*:./assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
               pid=$!
               until [ -f /tmp/cmd-output ]; do
                 sleep 0.1
@@ -100,7 +108,7 @@ reference:
         - persist_to_workspace:
             root: .
             paths:
-              - ./assets/
+              - ./assets/*
 
     upload: &UPLOAD
       environment:
@@ -353,32 +361,6 @@ jobs:
       <<: *ENVIRONMENT
       PKT_VAGRANT_ONLY_BOXES: win-7
     <<: *PACKAGE
-  existing_substrates:
-    environment:
-      <<: *ENVIRONMENT
-    docker: *packet_exec
-    steps:
-      - run:
-          name: Check for existing substrates
-          command: |
-            set +e
-            if [ "${CIRCLE_TAG}" != "" ]; then
-              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
-            else
-              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
-            fi
-            mkdir -p substrate-assets
-            aws s3 ls "${s3_dst}" | grep "substrate"
-            if [ $? -eq 0 ]; then
-              echo "Downloading existing substrates..."
-              aws s3 cp --recursive "${s3_dst}" ./substrate-assets/
-            else
-              echo "No existing substrates found. (location: ${s3_dst})"
-            fi
-      - persist_to_workspace:
-          root: .
-          paths:
-            - ./substrate-assets
   upload_substrates:
     <<: *UPLOAD
   upload_packages:
@@ -391,8 +373,6 @@ workflows:
           <<: *DEFAULT_WORKFLOW
       - packet_device:
           <<: *DEFAULT_WORKFLOW
-      - existing_substrates:
-          <<: *DEFAULT_WORKFLOW
       - start_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
@@ -401,32 +381,26 @@ workflows:
           <<: *DEFAULT_WORKFLOW
           requires:
             - start_guests
-            - existing_substrates
       - substrate_centos-6-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
             - start_guests
-            - existing_substrates
       - substrate_osx-10.9:
           <<: *DEFAULT_WORKFLOW
           requires:
             - start_guests
-            - existing_substrates
       - substrate_ubuntu-14.04-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
             - start_guests
-            - existing_substrates
       - substrate_ubuntu-14.04:
           <<: *DEFAULT_WORKFLOW
           requires:
             - start_guests
-            - existing_substrates
       - substrate_win-7:
           <<: *DEFAULT_WORKFLOW
           requires:
             - start_guests
-            - existing_substrates
       - package_appimage:
           <<: *DEFAULT_WORKFLOW
           requires:
