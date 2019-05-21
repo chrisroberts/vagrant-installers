@@ -34,35 +34,35 @@ reference:
         - run:
             name: Build substrate
             no_output_timeout: 30m
-          command: |
-            set +e
-            os="${guest%%-*}"
-            arch="${guest##*-}"
-            arch="${arch//3/6}"
-            if [ "${arch}" != "i686" ]; then
-              arch="64"
-            fi
-            ls ./substrate-assets/substrate_${os}*${arch}.zip 2>&1 > /dev/null
-            if [ $? -ne 0 ]; then
-              echo "Substrate not found - building..."
-              echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-              chmod 600 /tmp/packet-key
-              export PKT_VAGRANT_BUILD_TYPE="substrate"
-              export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-              packet-exec run -ssh-key /tmp/packet-key -download "./substrate-assets/*:./substrate-assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
-              pid=$!
-              until [ -f /tmp/cmd-output ]; do
-                sleep 0.1
-              done
-              tail --quiet --pid $pid -f /tmp/cmd-output &
-              wait $pid
-              result=$?
-              rm /tmp/packet-key
-              if [ $result -ne 0 ]; then
-                slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 10
+            command: |
+              set +e
+              os="${guest%%-*}"
+              arch="${guest##*-}"
+              arch="${arch//3/6}"
+              if [ "${arch}" != "i686" ]; then
+                arch="64"
               fi
-              exit $result
-            fi
+              ls ./substrate-assets/substrate_${os}*${arch}.zip 2>&1 > /dev/null
+              if [ $? -ne 0 ]; then
+                echo "Substrate not found - building..."
+                echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+                chmod 600 /tmp/packet-key
+                export PKT_VAGRANT_BUILD_TYPE="substrate"
+                export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
+                packet-exec run -ssh-key /tmp/packet-key -download "./substrate-assets/*:./substrate-assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
+                pid=$!
+                until [ -f /tmp/cmd-output ]; do
+                  sleep 0.1
+                done
+                tail --quiet --pid $pid -f /tmp/cmd-output &
+                wait $pid
+                result=$?
+                rm /tmp/packet-key
+                if [ $result -ne 0 ]; then
+                  slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 10
+                fi
+                exit $result
+              fi
         - persist_to_workspace:
             root: .
             paths:
