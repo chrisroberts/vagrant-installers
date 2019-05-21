@@ -416,39 +416,47 @@ workflows:
       - package_appimage:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_gem
             - restart_guests
       - package_archlinux:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_gem
             - restart_guests
       - package_centos-6:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_gem
             - restart_guests
             - substrate_centos-6
       - package_centos-6-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_gem
             - restart_guests
             - substrate_centos-6-i386
       - package_osx-10.9:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_gem
             - restart_guests
             - substrate_osx-10.9
       - package_ubuntu-14.04-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_gem
             - restart_guests
             - substrate_ubuntu-14.04-i386
       - package_ubuntu-14.04:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_gem
             - restart_guests
             - substrate_ubuntu-14.04
       - package_win-7:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_gem
             - restart_guests
             - substrate_win-7
       - restart_guests:
