@@ -378,6 +378,11 @@ workflows:
           requires:
             - start_guests
             - substrate_ubuntu-14.04-i386
+      - package_ubuntu-14.04:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - start_guests
+            - substrate_ubuntu-14.04
       - package_win-7:
           <<: *DEFAULT_WORKFLOW
           requires:
