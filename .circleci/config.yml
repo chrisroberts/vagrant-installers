@@ -10,11 +10,11 @@ reference:
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
+    PACKET_EXEC_PERSIST: 1
     PACKET_EXEC_DEVICE_NAME: installers
     PACKET_EXEC_DEVICE_SIZE: baremetal_1
     PACKET_EXEC_PREFER_FACILITIES: ewr1,iad1,ord1,dfw1,ams1,atl1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
-    PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware,LoadSecrets
     PACKET_EXEC_REMOTE_DIRECTORY: "${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
   copypasta:
     default_workflow: &DEFAULT_WORKFLOW
@@ -193,6 +193,7 @@ jobs:
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
             # package type will start all available guests
+            export PACKET_EXEC_PRE_BUILTINS="InstallVmware,InstallVagrant,InstallVagrantVmware,LoadSecrets"
             export PKT_VAGRANT_BUILD_TYPE="package"
             packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > .output 2>&1 &
             pid=$!
@@ -205,6 +206,68 @@ jobs:
             if [ $result -ne 0 ]; then
               slack -s error -m "Failed to start builder guests on packet device" -f .output -T 5
             fi
+            exit $result
+  restart_guests:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *packet_exec
+    steps:
+      - run:
+          name: Restart packet guests
+          command: |
+            set +e
+            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+            chmod 600 /tmp/packet-key
+            # package type will start all available guests
+            export PKT_VAGRANT_BUILD_TYPE="package"
+            packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > .output 2>&1 &
+            pid=$!
+            until [ -f .output ]; do
+              sleep 0.1
+            done
+            wait $pid
+            result=$?
+            if [ $result -ne 0 ]; then
+              slack -s error -m "Failed to destroy builder guests on packet device" -f .output -T 5
+              exit $result
+            fi
+            packet-exec run -ssh-key /tmp/packet-key -- vagrant up --no-provision > .output 2>&1 &
+            pid=$!
+            until [ -f .output ]; do
+              sleep 0.1
+            done
+            wait $pid
+            result=$?
+            if [ $result -ne 0 ]; then
+              slack -s error -m "Failed to start builder guests on packet device" -f .output -T 5
+            fi
+            rm /tmp/packet-key
+            exit $result
+  clean_guests:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *packet_exec
+    when: always
+    steps:
+      - run:
+          name: Clean packet guests
+          command: |
+            set +e
+            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+            chmod 600 /tmp/packet-key
+            unset PACKET_EXEC_PERSIST
+            export PKT_VAGRANT_BUILD_TYPE="package"
+            packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > .output 2>&1 &
+            pid=$!
+            until [ -f .output ]; do
+              sleep 0.1
+            done
+            wait $pid
+            result=$?
+            if [ $result -ne 0 ]; then
+              slack -s error -m "Failed to destroy builder guests on packet device" -f .output -T 5
+            fi
+            rm /tmp/packet-key
             exit $result
   substrate_centos-6:
     environment:
@@ -353,40 +416,40 @@ workflows:
       - package_appimage:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - restart_guests
       - package_archlinux:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - restart_guests
       - package_centos-6:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - restart_guests
             - substrate_centos-6
       - package_centos-6-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - restart_guests
             - substrate_centos-6-i386
       - package_osx-10.9:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - restart_guests
             - substrate_osx-10.9
       - package_ubuntu-14.04-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - restart_guests
             - substrate_ubuntu-14.04-i386
       - package_ubuntu-14.04:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - restart_guests
             - substrate_ubuntu-14.04
       - package_win-7:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - restart_guests
             - substrate_win-7
       - upload_substrates:
           <<: *DEFAULT_WORKFLOW
@@ -398,6 +461,17 @@ workflows:
             - substrate_ubuntu-14.04
             - substrate_win-7
       - upload_packages:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - package_appimage
+            - package_archlinux
+            - package_centos-6
+            - package_centos-6-i386
+            - package_osx-10.9
+            - package_ubuntu-14.04
+            - package_ubuntu-14.04-i386
+            - package_win-7
+      - clean_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
             - package_appimage
