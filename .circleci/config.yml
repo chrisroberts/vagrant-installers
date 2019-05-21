@@ -49,17 +49,17 @@ reference:
               chmod 600 /tmp/packet-key
               export PKT_VAGRANT_BUILD_TYPE="substrate"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-              packet-exec run -ssh-key /tmp/packet-key -download "./substrate-assets/*:./substrate-assets" -- ./.runner-vmware.sh > .output 2>&1 &
+              packet-exec run -ssh-key /tmp/packet-key -download "./substrate-assets/*:./substrate-assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
               pid=$!
-              until [ -f .output ]; do
+              until [ -f /tmp/cmd-output ]; do
                 sleep 0.1
               done
-              tail --quiet --pid $pid -f .output &
+              tail --quiet --pid $pid -f /tmp/cmd-output &
               wait $pid
               result=$?
               rm /tmp/packet-key
               if [ $result -ne 0 ]; then
-                slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f .output -T 5
+                slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 5
               fi
               exit $result
             fi
@@ -82,19 +82,19 @@ reference:
               chmod 600 /tmp/packet-key
               export PKT_VAGRANT_BUILD_TYPE="package"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-              packet-exec run -ssh-key /tmp/packet-key -download "./assets/*:./assets" -- ./.runner-vmware.sh > .output 2>&1 &
+              packet-exec run -ssh-key /tmp/packet-key -download "./assets/*:./assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
               pid=$!
-              until [ -f .output ]; do
+              until [ -f /tmp/cmd-output ]; do
                 sleep 0.1
               done
-              tail --quiet --pid $pid -f .output &
+              tail --quiet --pid $pid -f /tmp/cmd-output &
               wait $pid
               result=$?
               rm /tmp/packet-key
               mkdir -p assets
               mv substrate-assets/* assets/
               if [ $result -ne 0 ]; then
-                slack -s error -m "Failed to build Vagrant installer packages" -f .output -T 5
+                slack -s error -m "Failed to build Vagrant installer packages" -f /tmp/cmd-output -T 5
               fi
               exit $result
         - persist_to_workspace:
@@ -125,11 +125,11 @@ reference:
               for file in * ; do
                 aws s3 ls "${s3_dst}${file}"
                 if [ $? -ne 0 ]; then
-                  aws s3 cp "${file}" "${s3_dst}" > .output 2>&1
+                  aws s3 cp "${file}" "${s3_dst}" > /tmp/cmd-output 2>&1
                   result=$?
-                  cat .output
+                  cat /tmp/cmd-output
                   if [ $result -ne 0 ]; then
-                    slack -s error -m "Failed to upload installer asset \`${file}\`" -f .output
+                    slack -s error -m "Failed to upload installer asset \`${file}\`" -f /tmp/cmd-output
                     exit 1
                   fi
                   uploads="${uploads}\n${file}"
@@ -150,11 +150,11 @@ jobs:
           command: |
             set +e
             version=$(echo "${CIRCLE_TAG:-master}" | sed 's/^v//')
-            aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant-${version}.gem > .output 2>&1
+            aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant-${version}.gem > /tmp/cmd-output 2>&1
             result=$?
-            cat .output
+            cat /tmp/cmd-output
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to download Vagrant RubyGem" -f .output
+              slack -s error -m "Failed to download Vagrant RubyGem" -f /tmp/cmd-output
             fi
             exit $result
       - persist_to_workspace:
@@ -174,12 +174,12 @@ jobs:
             if [ $? -eq 0 ]; then
               exit
             fi
-            packet-exec create > .output 2>&1 &
+            packet-exec create > /tmp/cmd-output 2>&1 &
             pid=$!
-            tail --quiet --pid $pid -f .output &
+            tail --quiet --pid $pid -f /tmp/cmd-output &
             wait $pid
             if [ $? -ne 0 ]; then
-              slack -s error -m "Failed to create remote packet device" -f .output
+              slack -s error -m "Failed to create remote packet device" -f /tmp/cmd-output
             fi
             exit $result
   start_guests:
@@ -197,16 +197,16 @@ jobs:
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
             export PKT_VAGRANT_BUILD_TYPE="package"
-            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > .output 2>&1 &
+            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
-            until [ -f .output ]; do
+            until [ -f /tmp/cmd-output ]; do
               sleep 0.1
             done
             wait $pid
             result=$?
             rm /tmp/packet-key
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to start builder guests on packet device" -f .output -T 5
+              slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 5
             fi
             exit $result
   restart_guests:
@@ -226,26 +226,26 @@ jobs:
             # package type will start all available guests
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
-            packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > .output 2>&1 &
+            packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
             pid=$!
-            until [ -f .output ]; do
+            until [ -f /tmp/cmd-output ]; do
               sleep 0.1
             done
             wait $pid
             result=$?
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to destroy builder guests on packet device" -f .output -T 5
+              slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 5
               exit $result
             fi
-            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > .output 2>&1 &
+            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
-            until [ -f .output ]; do
+            until [ -f /tmp/cmd-output ]; do
               sleep 0.1
             done
             wait $pid
             result=$?
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to start builder guests on packet device" -f .output -T 5
+              slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 5
             fi
             rm /tmp/packet-key
             exit $result
@@ -264,15 +264,15 @@ jobs:
             unset PACKET_EXEC_PERSIST
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_PROJECT_USERNAME}.${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BUILD_NUM}"
             export PKT_VAGRANT_BUILD_TYPE="package"
-            packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > .output 2>&1 &
+            packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
             pid=$!
-            until [ -f .output ]; do
+            until [ -f /tmp/cmd-output ]; do
               sleep 0.1
             done
             wait $pid
             result=$?
             if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to destroy builder guests on packet device" -f .output -T 5
+              slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 5
             fi
             rm /tmp/packet-key
             exit $result

@@ -71,10 +71,9 @@ declare -A pids
 
 for guest in ${guests}
 do
-    vagrant provision ${guest} 2>&1 > .output-${guest} &
+    vagrant provision ${guest} > .output-${guest} 2>&1 &
     pids[$guest]=$!
     tail --quiet --pid ${pids[$guest]} -f .output-${guest} &
-    sleep 10
 done
 
 result=0
