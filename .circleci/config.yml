@@ -98,7 +98,7 @@ reference:
               export SLACK_TITLE="Vagrant Packaging - Package ${PKT_VAGRANT_ONLY_BOXES}"
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
               chmod 600 /tmp/packet-key
-              pkg_dir="${CIRCLECI_BUILD_NUM}"
+              pkg_dir="${CIRCLE_BUILD_NUM}"
               export PKT_VAGRANT_BUILD_TYPE="package"
               export PKT_VAGRANT_INSTALLER_VAGRANT_PACKAGE_OUTPUT_DIR="${pkg_dir}"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
