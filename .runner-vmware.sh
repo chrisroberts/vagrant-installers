@@ -6,7 +6,12 @@ function cleanup {
     fi
     for logfile in `ls .output-*`
     do
-        guest="${logfile##output-}"
+        guest="${logfile##.output-}"
+        if [ "${VAGRANT_ONLY_BOXES}" != "" ]; then
+            if [ "${VAGRANT_ONLY_BOXES}" != "${guest}" ]; then
+                continue
+            fi
+        fi
         (>&2 echo "Failed to provision: ${guest}")
         sed -i -E '/^[[:space:]]+from \//d' "${logfile}"
         output=$(tail -n 5 "${logfile}")
@@ -73,6 +78,9 @@ for guest in ${guests}
 do
     vagrant provision ${guest} > .output-${guest} 2>&1 &
     pids[$guest]=$!
+    until [ -f ".output-${guest}" ]; do
+        sleep 0.1
+    done
     tail --quiet --pid ${pids[$guest]} -f .output-${guest} &
 done
 

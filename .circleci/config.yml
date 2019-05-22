@@ -34,6 +34,7 @@ reference:
             no_output_timeout: 30m
             command: |
               set +e
+              export SLACK_TITLE="Vagrant Packaging - Substrate ${PKT_VAGRANT_ONLY_BOXES}"
               os="${PKT_VAGRANT_ONLY_BOXES%%-*}"
               if [ "${os}" == "osx" ]; then
                 os="darwin"
@@ -43,17 +44,22 @@ reference:
               if [ "${arch}" != "i686" ]; then
                 arch="64"
               fi
+              if [ "${os}" == "win" ]; then
+                arch=""
+              fi
               if [ "${CIRCLE_TAG}" != "" ]; then
                 s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
               else
                 s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
               fi
               echo "Checking for existing substrate OS: ${os} ARCH: ${arch}"
-              fname=$(aws s3 ls "${s3_dst}" | grep "substrate_${os}.*${arch}.zip" | awk '{print $4}')
+              fname=($(aws s3 ls "${s3_dst}" | grep "substrate_${os}.*${arch}.zip" | awk '{print $4}'))
               mkdir -p substrate-assets
               if [ "${fname}" != "" ]; then
-                echo "Existing substrate found (${fname}). Downloading..."
-                aws s3 cp "${s3_dst}${fname}" ./substrate-assets/
+                for dname in "${fname[@]}"; do
+                  echo "Existing substrate found (${dname}). Downloading..."
+                  aws s3 cp "${s3_dst}${dname}" ./substrate-assets/
+                done
               else
                 echo "Substrate not found - building..."
                 echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
@@ -89,6 +95,7 @@ reference:
             no_output_timeout: 1h
             command: |
               set +e
+              export SLACK_TITLE="Vagrant Packaging - Package ${PKT_VAGRANT_ONLY_BOXES}"
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
               chmod 600 /tmp/packet-key
               pkg_dir=$(basename $(mktemp -u))
