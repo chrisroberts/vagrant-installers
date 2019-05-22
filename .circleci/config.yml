@@ -98,9 +98,9 @@ reference:
               export SLACK_TITLE="Vagrant Packaging - Package ${PKT_VAGRANT_ONLY_BOXES}"
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
               chmod 600 /tmp/packet-key
-              pkg_dir=$(basename $(mktemp -u))
+              pkg_dir="${CIRCLECI_BUILD_NUM}"
               export PKT_VAGRANT_BUILD_TYPE="package"
-              export PKT_VAGRANT_INSTALLERS_VAGRANT_PACKAGE_OUTPUT_DIR="${pkg_dir}"
+              export PKT_VAGRANT_INSTALLER_VAGRANT_PACKAGE_OUTPUT_DIR="${pkg_dir}"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
               packet-exec run -ssh-key /tmp/packet-key -download "./${pkg_dir}/*:./assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
               pid=$!
@@ -112,7 +112,6 @@ reference:
               result=$?
               rm /tmp/packet-key
               mkdir -p assets
-              mv substrate-assets/* assets/
               if [ $result -ne 0 ]; then
                 slack -s error -m "Failed to build Vagrant installer packages" -f /tmp/cmd-output -T 10
               fi

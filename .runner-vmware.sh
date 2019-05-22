@@ -19,19 +19,6 @@ function cleanup {
     done
 }
 
-function keepalive {
-    slept=0
-    while true
-    do
-        let slept++
-        if [ $slept -gt 540 ]; then
-            echo "."
-            slept=0
-        fi
-        sleep 1
-    done
-}
-
 trap cleanup EXIT
 
 GEM_PATH=$(ls vagrant-*.gem)
@@ -55,7 +42,7 @@ declare -A upids
 if [ "${PACKET_EXEC}" == "1" ]; then
     # macos uploads
     if [ -f "MacOS_PkgSigning.cert" ]; then
-        if [[ "${guests[*]}" = *"osx-10.9"* ]]; then
+        if [[ "${guests[*]}" = *"osx"* ]]; then
             vagrant upload MacOS_PkgSigning.cert "~/" osx-10.9
             vagrant upload MacOS_PkgSigning.key "~/" osx-10.9
             export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_CERT_PATH="~/MacOS_PkgSigning.cert"
@@ -64,7 +51,7 @@ if [ "${PACKET_EXEC}" == "1" ]; then
     fi
     # win uploads
     if [ -f "Win_CodeSigning.p12" ]; then
-        if [[ "${guests[*]}" = *"win-7"* ]]; then
+        if [[ "${guests[*]}" = *"win"* ]]; then
             vagrant upload Win_CodeSigning.p12 "~/" win-7
             export VAGRANT_INSTALLER_SignKeyPath="C:\\Users\\vagrant\\Win_CodeSigning.p12"
         fi
@@ -86,9 +73,6 @@ done
 
 result=0
 
-# keepalive &
-# kp=$!
-
 for guest in ${guests}
 do
     wait ${pids[$guest]}
@@ -101,18 +85,5 @@ do
         rm .output-${guest}
     fi
 done
-
-# pkill -P $kp
-# kill $kp
-mkdir -p assets
-
-if [ $result -eq 0 ]; then
-    if [ "${VAGRANT_BUILD_TYPE}" = "package" ]
-    then
-        mv -f pkg/* assets/
-    else
-        mv -f substrate-assets/* assets/
-    fi
-fi
 
 exit $result
