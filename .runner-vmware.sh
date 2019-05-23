@@ -41,12 +41,12 @@ declare -A upids
 
 if [ "${PACKET_EXEC}" == "1" ]; then
     # macos uploads
-    if [ -f "MacOS_PkgSigning.cert" ]; then
+    if [ -f "MacOS_CodeSigning.cert" ]; then
         if [[ "${guests[*]}" = *"osx"* ]]; then
-            vagrant upload MacOS_PkgSigning.cert "~/" osx-10.9
-            vagrant upload MacOS_PkgSigning.key "~/" osx-10.9
-            export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_CERT_PATH="~/MacOS_PkgSigning.cert"
-            export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_KEY_PATH="~/MacOS_PkgSigning.key"
+            vagrant upload MacOS_CodeSigning.cert "~/" osx-10.9
+            vagrant upload MacOS_CodeSigning.key "~/" osx-10.9
+            export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_CERT_PATH="~/MacOS_CodeSigning.cert"
+            export VAGRANT_INSTALLER_VAGRANT_PACKAGE_SIGN_KEY_PATH="~/MacOS_CodeSigning.key"
         fi
     fi
     # win uploads
