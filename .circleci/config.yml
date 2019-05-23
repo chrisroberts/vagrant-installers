@@ -7,7 +7,7 @@ reference:
           username: $QUAY_USERNAME
           password: $QUAY_PASSWORD
   environment: &ENVIRONMENT
-    TEST_VAR: "${CIRCLE_BUILD_NUM} - ${CIRCLE_WORKFLOW_ID}"
+    TEST_VAR: ${CIRCLE_BUILD_NUM} - ${CIRCLE_WORKFLOW_ID}
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
