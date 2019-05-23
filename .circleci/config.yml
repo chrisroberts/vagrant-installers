@@ -642,6 +642,7 @@ workflows:
           requires:
             - approve_release
       - tester:
+          context: vagrant-test
           filters:
             branches:
               only: master
