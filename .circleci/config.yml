@@ -634,6 +634,7 @@ workflows:
           requires:
             - sign_packages
       - approve_release:
+          <<: *RELEASE_WORKFLOW
           type: approval
           requires:
             - sign_packages
