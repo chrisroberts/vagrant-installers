@@ -31,6 +31,7 @@ reference:
       export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
       packet-exec run -ssh-key /tmp/packet-key -- touch .complete
       unset PACKET_EXEC_PERSIST
+      export PKT_VAGRANT_BUILD_TYPE="package"
       packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
       pid=$!
       until [ -f /tmp/cmd-output ]; do
@@ -180,7 +181,7 @@ reference:
                 fi
               done
               if [ "${uploads}" != "" ]; then
-                slack -m "New installer assets available:\n\n${uploads}\n\n>${s3_dst}"
+                slack -m "New installer assets available:\n\n${uploads}\n\n> ${s3_dst}"
               fi
               exit
         - *CLEANUP_STEP
