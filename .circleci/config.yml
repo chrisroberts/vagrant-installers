@@ -15,7 +15,7 @@ reference:
     PACKET_EXEC_DEVICE_SIZE: baremetal_1
     PACKET_EXEC_PREFER_FACILITIES: ewr1,iad1,ord1,dfw1,ams1,atl1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
-    PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware,LoadSecrets
+    PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware
   copypasta:
     default_workflow: &DEFAULT_WORKFLOW
       context: vagrant-test
@@ -274,6 +274,20 @@ jobs:
             fi
             rm /tmp/packet-key
             exit $result
+  load_secrets:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *packet_exec
+    steps:
+      - run:
+          name: Provide secrets
+          command: |
+            set +e
+            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+            chmod 600 /tmp/packet-key
+            export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
+            packet-exec run -ssh-key /tmp/packet-key -- bash -c "until [ -f .complete ]; do sleep 1; done"
   clean_guests:
     environment:
       <<: *ENVIRONMENT
@@ -284,6 +298,7 @@ jobs:
           name: Clean packet guests
           command: |
             set +e
+            touch .complete
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
             unset PACKET_EXEC_PERSIST
@@ -433,6 +448,7 @@ workflows:
       - package_osx-10.9:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_secrets
             - restart_guests
             - substrate_osx-10.9
       - package_ubuntu-14.04-i386:
@@ -448,8 +464,13 @@ workflows:
       - package_win-7:
           <<: *DEFAULT_WORKFLOW
           requires:
+            - load_secrets
             - restart_guests
             - substrate_win-7
+      - load_secrets:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - packet_device
       - restart_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
