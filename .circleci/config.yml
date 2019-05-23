@@ -24,7 +24,31 @@ reference:
           ignore: master
         tags:
           only: /.*/
-
+    cleanup: &CLEANUP |-
+      set +e
+      echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+      chmod 600 /tmp/packet-key
+      export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
+      packet-exec run -ssh-key /tmp/packet-key -- touch .complete
+      unset PACKET_EXEC_PERSIST
+      packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
+      pid=$!
+      until [ -f /tmp/cmd-output ]; do
+        sleep 0.1
+      done
+      tail -f --quiet --pid $pid /tmp/cmd-output
+      wait $pid
+      result=$?
+      if [ $result -ne 0 ]; then
+        slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 10
+      fi
+      rm /tmp/packet-key
+      exit $result
+    cleanup_step: &CLEANUP_STEP
+      run:
+        name: Clean packet guests
+        when: on_fail
+        command: *CLEANUP
     substrate: &SUBSTRATE
       docker: *packet_exec
       steps:
@@ -84,6 +108,7 @@ reference:
             root: .
             paths:
               - ./substrate-assets/*
+        - *CLEANUP_STEP
     package: &PACKAGE
       docker: *packet_exec
       steps:
@@ -120,7 +145,7 @@ reference:
             root: .
             paths:
               - ./assets/*
-
+        - *CLEANUP_STEP
     upload: &UPLOAD
       environment:
         <<: *ENVIRONMENT
@@ -158,6 +183,7 @@ reference:
                 slack -m "New installer assets available:\n\n${uploads}\n\n>${s3_dst}"
               fi
               exit
+        - *CLEANUP_STEP
 jobs:
   load_gem:
     environment:
@@ -232,6 +258,7 @@ jobs:
               slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 10
             fi
             exit $result
+      - *CLEANUP_STEP
   restart_guests:
     environment:
       <<: *ENVIRONMENT
@@ -274,7 +301,8 @@ jobs:
             fi
             rm /tmp/packet-key
             exit $result
-  load_secrets:
+      - *CLEANUP_STEP
+  secrets_and_cleaner:
     environment:
       <<: *ENVIRONMENT
     docker: *packet_exec
@@ -285,9 +313,11 @@ jobs:
             set +e
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
+            export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do sleep 1; done"
+            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do echo .; sleep 1; done"
+      - *CLEANUP_STEP
   clean_guests:
     environment:
       <<: *ENVIRONMENT
@@ -296,27 +326,7 @@ jobs:
     steps:
       - run:
           name: Clean packet guests
-          command: |
-            set +e
-            touch .complete
-            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-            chmod 600 /tmp/packet-key
-            unset PACKET_EXEC_PERSIST
-            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            export PKT_VAGRANT_BUILD_TYPE="package"
-            packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
-            pid=$!
-            until [ -f /tmp/cmd-output ]; do
-              sleep 0.1
-            done
-            tail -f --quiet --pid $pid /tmp/cmd-output
-            wait $pid
-            result=$?
-            if [ $result -ne 0 ]; then
-              slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 10
-            fi
-            rm /tmp/packet-key
-            exit $result
+          command: *CLEANUP
   substrate_centos-6:
     environment:
       <<: *ENVIRONMENT
@@ -465,7 +475,7 @@ workflows:
           requires:
             - restart_guests
             - substrate_win-7
-      - load_secrets:
+      - secrets_and_cleaner:
           <<: *DEFAULT_WORKFLOW
           requires:
             - packet_device
@@ -499,6 +509,7 @@ workflows:
             - package_ubuntu-14.04
             - package_ubuntu-14.04-i386
             - package_win-7
+            - secrets_and_cleaner
       - clean_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
