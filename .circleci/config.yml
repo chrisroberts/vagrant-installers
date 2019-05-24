@@ -272,10 +272,10 @@ jobs:
                 echo "${list[${ptrn}]}" >> circle-substrates-required
               fi
             done
-    - persist_to_workspace:
-        root: .
-        paths:
-          - ./circle-substrates-required
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./circle-substrates-required
   required_package_guests:
     environment:
       <<: *ENVIRONMENT
