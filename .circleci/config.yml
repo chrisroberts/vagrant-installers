@@ -275,6 +275,8 @@ jobs:
                 echo "${list[${ptrn}]}" >> circle-substrates-required
               fi
             done
+            guests=$(<circle-substrates-required)
+            echo "Substrates required for: ${guests}"
       - persist_to_workspace:
           root: .
           paths:
@@ -308,6 +310,8 @@ jobs:
                 echo "${list[${ptrn}]}" >> circle-packages-required
               fi
             done
+            guests=$(<circle-packages-required)
+            echo "Packages required for: ${guests}"
       - persist_to_workspace:
           root: .
           paths:
@@ -397,7 +401,7 @@ jobs:
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
-            packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
+            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
@@ -410,7 +414,7 @@ jobs:
               exit $result
             fi
             export PKT_VAGRANT_ONLY_BOXES="${guests/$'\n'/,}"
-            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
+            packet-exec run -ssh-key /tmp/packet-key -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
