@@ -465,6 +465,15 @@ jobs:
       - run:
           name: Clean packet guests
           command: *CLEANUP
+  preapproval_notification:
+    environment:
+      <<: *ENVIRONMENT
+      docker: *packet_exec
+      steps:
+        - run:
+            name: Notify of approval
+            command: |
+              slack -s warn -m "@vagrant - A new release is pending approval (*${CIRCLE_TAG}*):\n\n> https://circleci.hashicorp.engineering/workflow-run/${CIRCLE_WORKFLOW_ID}" -t "Vagrant Release Notification"
   sign_packages:
     environment:
       <<: *ENVIRONMENT
@@ -519,6 +528,7 @@ jobs:
           command: |
             set +e
             echo "THIS IS CURRENTLY STUBBED"
+            slack -m "New package release! ${CIRCLE_TAG}"
             exit 0
             if [ "${CIRCLE_TAG}" != "" ]; then
               s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
@@ -779,7 +789,7 @@ workflows:
       - upload_shasums:
           <<: *RELEASE_WORKFLOW
           requires:
-            - sign_packages
+            - preapproval_notification
       - approve_release:
           <<: *RELEASE_WORKFLOW
           type: approval
@@ -789,3 +799,7 @@ workflows:
           <<: *RELEASE_WORKFLOW
           requires:
             - approve_release
+      - preapproval_notification:
+          <<: *RELEASE_WORKFLOW
+          requires:
+            - sign_packages
