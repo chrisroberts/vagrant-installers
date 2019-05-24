@@ -277,7 +277,7 @@ jobs:
   required_package_guests:
     environment:
       <<: *ENVIRONMENT
-    docker: *packet-exec
+    docker: *packet_exec
     steps:
       - attach_workspace:
           at: .
