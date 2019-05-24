@@ -468,7 +468,7 @@ jobs:
   preapproval_notification:
     environment:
       <<: *ENVIRONMENT
-      docker: *packet_exec
+    docker: *packet_exec
     steps:
       - run:
           name: Notify of approval
