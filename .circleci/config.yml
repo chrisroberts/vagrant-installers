@@ -48,7 +48,7 @@ reference:
       wait $pid
       result=$?
       if [ $result -ne 0 ]; then
-        slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 10
+        # slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 10
       fi
       rm /tmp/packet-key
       exit $result
@@ -78,7 +78,7 @@ reference:
               done
               if [ "${build}" != "1" ]; then
                 echo "Substrate does not need to be built!"
-                touch "./substrate-assets/.${CIRCLE_JOB_NUM}"
+                touch "./substrate-assets/stub-${CIRCLE_JOB_NUM}"
                 exit
               fi
               echo "Substrate not found - building..."
@@ -127,7 +127,7 @@ reference:
               done
               if [ "${build}" != "1" ]; then
                 echo "Package does not need to be built!"
-                touch "./assets/.${CIRCLE_JOB_NUM}"
+                touch "./assets/stub-${CIRCLE_JOB_NUM}"
                 exit
               fi
               echo "Package not found - building..."
@@ -177,7 +177,7 @@ reference:
               pushd ./assets
               uploads=""
               for file in * ; do
-                if [[ "${file}" = "."* ]]; then
+                if [[ "${file}" = "stub-"* ]]; then
                   continue
                 fi
                 aws s3 ls "${s3_dst}${file}"
