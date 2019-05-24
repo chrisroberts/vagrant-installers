@@ -498,8 +498,9 @@ jobs:
             fi
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
-            packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
-            rm -f ./assets/vagrant_*
+            packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./shasums" -- ./scripts/sign.sh ${VERSION}
+            rm -f ./assets/*
+            mv ./shasums/* ./assets/
             ls -l ./assets
       - *CLEANUP_STEP
       - persist_to_workspace:
