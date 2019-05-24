@@ -78,6 +78,7 @@ reference:
               done
               if [ "${build}" != "1" ]; then
                 echo "Substrate does not need to be built!"
+                touch "./substrate-assets/.${CIRCLE_JOB_NUM}"
                 exit
               fi
               echo "Substrate not found - building..."
@@ -126,6 +127,7 @@ reference:
               done
               if [ "${build}" != "1" ]; then
                 echo "Package does not need to be built!"
+                touch "./assets/.${CIRCLE_JOB_NUM}"
                 exit
               fi
               echo "Package not found - building..."
@@ -175,6 +177,9 @@ reference:
               pushd ./assets
               uploads=""
               for file in * ; do
+                if [[ "${file}" = "."* ]]; then
+                  continue
+                fi
                 aws s3 ls "${s3_dst}${file}"
                 if [ $? -ne 0 ]; then
                   aws s3 cp "${file}" "${s3_dst}" > /tmp/cmd-output 2>&1
