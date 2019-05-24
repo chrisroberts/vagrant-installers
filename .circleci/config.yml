@@ -7,8 +7,6 @@ reference:
           username: $QUAY_USERNAME
           password: $QUAY_PASSWORD
   environment: &ENVIRONMENT
-    BUILD_ID_FILE: "~/.circle-build-id"
-    BUILD_ID_GEN: "$(<~/.${BUILD_ID_FILE})"
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -304,10 +302,10 @@ jobs:
                 echo "${list[${ptrn}]}" >> circle-packages-required
               fi
             done
-    - persist_to_workspace:
-        root: .
-        paths:
-          - ./circle-packages-required
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./circle-packages-required
   packet_device:
     environment:
       <<: *ENVIRONMENT
