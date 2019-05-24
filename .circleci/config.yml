@@ -7,7 +7,8 @@ reference:
           username: $QUAY_USERNAME
           password: $QUAY_PASSWORD
   environment: &ENVIRONMENT
-    TEST_VAR: ${CIRCLE_BUILD_NUM} - ${CIRCLE_WORKFLOW_ID}
+    BUILD_ID_FILE: "~/.circle-build-id"
+    BUILD_ID_GEN: "$(<~/.${BUILD_ID_FILE})"
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     SLACK_TITLE: Vagrant Packaging
@@ -62,59 +63,44 @@ reference:
       docker: *packet_exec
       steps:
         - checkout
+        - attach_workspace:
+            at: .
         - run:
             name: Build substrate
             no_output_timeout: 30m
             command: |
               set +e
               export SLACK_TITLE="Vagrant Packaging - Substrate ${PKT_VAGRANT_ONLY_BOXES}"
-              os="${PKT_VAGRANT_ONLY_BOXES%%-*}"
-              if [ "${os}" == "osx" ]; then
-                os="darwin"
-              fi
-              arch="${PKT_VAGRANT_ONLY_BOXES##*-}"
-              arch="${arch//3/6}"
-              if [ "${arch}" != "i686" ]; then
-                arch="64"
-              fi
-              if [ "${os}" == "win" ]; then
-                arch=""
-              fi
-              if [ "${CIRCLE_TAG}" != "" ]; then
-                s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
-              else
-                s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
-              fi
-              echo "Checking for existing substrate OS: ${os} ARCH: ${arch}"
-              fname=($(aws s3 ls "${s3_dst}" | grep "substrate_${os}.*${arch}.zip" | awk '{print $4}'))
-              mkdir -p substrate-assets
-              if [ "${fname}" != "" ]; then
-                for dname in "${fname[@]}"; do
-                  echo "Existing substrate found (${dname}). Downloading..."
-                  aws s3 cp "${s3_dst}${dname}" ./substrate-assets/
-                done
-              else
-                echo "Substrate not found - building..."
-                echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-                chmod 600 /tmp/packet-key
-                export PKT_VAGRANT_BUILD_TYPE="substrate"
-                export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-                pkg_dir="${CIRCLE_BUILD_NUM}"
-                export PKT_VAGRANT_INSTALLER_VAGRANT_SUBSTRATE_OUTPUT_DIR="${pkg_dir}"
-                packet-exec run -ssh-key /tmp/packet-key -download "./${pkg_dir}/*:./substrate-assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
-                pid=$!
-                until [ -f /tmp/cmd-output ]; do
-                  sleep 0.1
-                done
-                tail --quiet --pid $pid -f /tmp/cmd-output &
-                wait $pid
-                result=$?
-                rm /tmp/packet-key
-                if [ $result -ne 0 ]; then
-                  slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 10
+              substrates=$(<./circle-substrates-required)
+              for sub in "${substrates}"; do
+                if [ "${PKT_VAGRANT_ONLY_BOXES}" == "${sub}" ]; then
+                  build=1
                 fi
-                exit $result
+              done
+              if [ "${build}" != "1" ]; then
+                echo "Substrate does not need to be built!"
+                exit
               fi
+              echo "Substrate not found - building..."
+              echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
+              chmod 600 /tmp/packet-key
+              export PKT_VAGRANT_BUILD_TYPE="substrate"
+              export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
+              pkg_dir="${CIRCLE_BUILD_NUM}"
+              export PKT_VAGRANT_INSTALLER_VAGRANT_SUBSTRATE_OUTPUT_DIR="${pkg_dir}"
+              packet-exec run -ssh-key /tmp/packet-key -download "./${pkg_dir}/*:./substrate-assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
+              pid=$!
+              until [ -f /tmp/cmd-output ]; do
+                sleep 0.1
+              done
+              tail --quiet --pid $pid -f /tmp/cmd-output &
+              wait $pid
+              result=$?
+              rm /tmp/packet-key
+              if [ $result -ne 0 ]; then
+                slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 10
+              fi
+              exit $result
         - persist_to_workspace:
             root: .
             paths:
@@ -132,6 +118,17 @@ reference:
             command: |
               set +e
               export SLACK_TITLE="Vagrant Packaging - Package ${PKT_VAGRANT_ONLY_BOXES}"
+              packages=$(<./circle-packages-required)
+              for sub in "${substrates}"; do
+                if [ "${PKT_VAGRANT_ONLY_BOXES}" == "${sub}" ]; then
+                  build=1
+                fi
+              done
+              if [ "${build}" != "1" ]; then
+                echo "Package does not need to be built!"
+                exit
+              fi
+              echo "Package not found - building..."
               echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
               chmod 600 /tmp/packet-key
               pkg_dir="${CIRCLE_BUILD_NUM}"
@@ -227,6 +224,90 @@ jobs:
           root: .
           paths:
             - ./*.gem
+  fetch_existing_assets:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *packet_exec
+    steps:
+      - run:
+          name: Fetch previous builds
+          command: |
+            set +e
+            if [ "${CIRCLE_TAG}" != "" ]; then
+              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+            else
+              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
+            fi
+            mkdir -p assets substrate-assets
+            aws s3 cp --recursive --include "substrate*" "${s3_dst}" ./substrate-assets/
+            aws s3 cp --recursive --include "vagrant*" "${s3_dst}" ./assets/
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./assets/*
+            - ./substrate-assets/*
+  required_substrate_guests:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *packet_exec
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Determine substrates to build
+          command: |
+            set +e
+            declare -A list=(
+              [*centos_x86_64.zip]="centos-6"
+              [*centos_i686.zip]="centos-6-i386"
+              [*darwin_x86_64.zip]="osx-10.9"
+              [*ubuntu_x86_64.zip]="ubuntu-14.04"
+              [*ubuntu_i686.zip]="ubuntu-14.04-i386"
+              [*windows_x86_64.zip]="win-7"
+              [*windows_i686.zip]="win-7"
+            )
+            for ptrn in "${!list[@]}"; do
+              path=(substrate-assets/${ptrn})
+              if [ ! -f "${path}" ]; then
+                echo "${list[${ptrn}]}" >> circle-substrates-required
+              fi
+            done
+    - persist_to_workspace:
+        root: .
+        paths:
+          - ./circle-substrates-required
+  required_package_guests:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *packet-exec
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Determine packages to build
+          command: |
+            set +e
+            declare -A list=(
+              [*amd64.zip]="appimage"
+              [*x86_64.tar.xz]="archlinux"
+              [*x86_64.rpm]="centos-6"
+              [*i686.rpm]="centos-6"
+              [*x86_64.dmg]="osx-10.9"
+              [*x86_64.deb]="ubuntu-14.04"
+              [*i686.deb]="ubuntu-14.04-i386"
+              [*x86_64.msi]="win-7"
+              [*i686.msi]="win-7"
+            )
+            for ptrn in "${!list[@]}"; do
+              path=(assets/${ptrn})
+              if [ -f "${path}" ]; then
+                echo "${list[${ptrn}]}" >> circle-packages-required
+              fi
+            done
+    - persist_to_workspace:
+        root: .
+        paths:
+          - ./circle-packages-required
   packet_device:
     environment:
       <<: *ENVIRONMENT
@@ -251,21 +332,30 @@ jobs:
               slack -s error -m "Failed to create remote packet device" -f /tmp/cmd-output
             fi
             exit $result
-  start_guests:
+  start_substrate_guests:
     environment:
       <<: *ENVIRONMENT
     docker: *packet_exec
     steps:
       - checkout
+      - attach_workspace:
+          at: .
       - run:
           name: Start packet guests
           command: |
             set +e
+            if [ ! -f ./circle-substrates-required ]; then
+              echo "No substrates to build"
+              exit
+            fi
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
+            guests=$(<./circle-substrates-required)
+            rm -rf ./substrate-assets ./assets
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            export PKT_VAGRANT_BUILD_TYPE="package"
+            export PKT_VAGRANT_ONLY_BOXES="${guests/$'\n'/,}"
+            export PKT_VAGRANT_BUILD_TYPE="substrate"
             packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
@@ -280,7 +370,7 @@ jobs:
             fi
             exit $result
       - *CLEANUP_STEP
-  restart_guests:
+  start_package_guests:
     environment:
       <<: *ENVIRONMENT
     docker: *packet_exec
@@ -292,11 +382,18 @@ jobs:
           name: Restart packet guests
           command: |
             set +e
+            # package type will start all available guests
+            if [ ! -f ./circle-substrates-required ]; then
+              echo "No substrates to build"
+              exit
+            fi
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
+            guests=$(<./circle-substrates-required)
+            rm -rf ./assets
             # package type will start all available guests
-            export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
+            export PKT_VAGRANT_BUILD_TYPE="package"
             packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
@@ -309,6 +406,7 @@ jobs:
               slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 10
               exit $result
             fi
+            export PKT_VAGRANT_ONLY_BOXES="${guests/$'\n'/,}"
             packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
@@ -507,80 +605,92 @@ workflows:
           <<: *DEFAULT_WORKFLOW
       - packet_device:
           <<: *DEFAULT_WORKFLOW
-      - start_guests:
+      - fetch_existing_assets:
+          <<: *DEFAULT_WORKFLOW
+      - required_substrate_guests:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - fetch_existing_assets
+      - required_package_guests:
+          <<: *DEFAULT_WORKFLOW
+          requires:
+            - fetch_existing_assets
+      - start_substrate_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
             - packet_device
+            - required_substrate_guests
       - substrate_centos-6:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - start_substrate_guests
       - substrate_centos-6-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - start_substrate_guests
       - substrate_osx-10.9:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - start_substrate_guests
       - substrate_ubuntu-14.04-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - start_substrate_guests
       - substrate_ubuntu-14.04:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - start_substrate_guests
       - substrate_win-7:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - start_guests
+            - start_substrate_guests
       - package_appimage:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - restart_guests
+            - start_package_guests
       - package_archlinux:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - restart_guests
+            - start_package_guests
       - package_centos-6:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - restart_guests
+            - start_package_guests
             - substrate_centos-6
       - package_centos-6-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - restart_guests
+            - start_package_guests
             - substrate_centos-6-i386
       - package_osx-10.9:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - restart_guests
+            - start_package_guests
             - substrate_osx-10.9
       - package_ubuntu-14.04-i386:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - restart_guests
+            - start_package_guests
             - substrate_ubuntu-14.04-i386
       - package_ubuntu-14.04:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - restart_guests
+            - start_package_guests
             - substrate_ubuntu-14.04
       - package_win-7:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - restart_guests
+            - start_package_guests
             - substrate_win-7
       - secrets_and_cleaner:
           <<: *DEFAULT_WORKFLOW
           requires:
             - packet_device
-      - restart_guests:
+      - start_package_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
             - load_gem
+            - required_package_guests
             - substrate_centos-6
             - substrate_centos-6-i386
             - substrate_osx-10.9
@@ -643,8 +753,3 @@ workflows:
           <<: *RELEASE_WORKFLOW
           requires:
             - approve_release
-      - tester:
-          context: vagrant-test
-          filters:
-            branches:
-              only: master
