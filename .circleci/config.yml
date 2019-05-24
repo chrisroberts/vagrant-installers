@@ -296,7 +296,7 @@ jobs:
               [*amd64.zip]="appimage"
               [*x86_64.tar.xz]="archlinux"
               [*x86_64.rpm]="centos-6"
-              [*i686.rpm]="centos-6"
+              [*i686.rpm]="centos-6-i386"
               [*x86_64.dmg]="osx-10.9"
               [*x86_64.deb]="ubuntu-14.04"
               [*i686.deb]="ubuntu-14.04-i386"
@@ -306,7 +306,7 @@ jobs:
             touch circle-packages-required
             for ptrn in "${!list[@]}"; do
               path=(assets/${ptrn})
-              if [ -f "${path}" ]; then
+              if [ ! -f "${path}" ]; then
                 echo "${list[${ptrn}]}" >> circle-packages-required
               fi
             done
