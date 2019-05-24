@@ -68,6 +68,7 @@ reference:
             no_output_timeout: 30m
             command: |
               set +e
+              rm -f ./substrate-assets/*
               export SLACK_TITLE="Vagrant Packaging - Substrate ${PKT_VAGRANT_ONLY_BOXES}"
               substrates=$(<./circle-substrates-required)
               for sub in "${substrates}"; do
@@ -115,6 +116,7 @@ reference:
             no_output_timeout: 1h
             command: |
               set +e
+              rm -f ./assets/*
               export SLACK_TITLE="Vagrant Packaging - Package ${PKT_VAGRANT_ONLY_BOXES}"
               packages=$(<./circle-packages-required)
               for sub in "${substrates}"; do
