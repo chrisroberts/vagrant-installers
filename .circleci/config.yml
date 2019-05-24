@@ -506,6 +506,7 @@ jobs:
               slack -s error -m "Failed to determine package version for signing"
               exit 1
             fi
+            unset PACKET_PERSIST
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
             packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
@@ -527,9 +528,10 @@ jobs:
           name: Release Vagrant Packages
           command: |
             set +e
-            echo "THIS IS CURRENTLY STUBBED"
-            slack -m "New package release! ${CIRCLE_TAG}"
-            exit 0
+            if [ "${STUB_RELEASE}" != "" ]; then
+              slack -m "Vagrant stub release complete (no-op) - *${CIRCLE_TAG}*"
+              exit
+            fi
             if [ "${CIRCLE_TAG}" != "" ]; then
               s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
             else
