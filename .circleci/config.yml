@@ -487,6 +487,7 @@ jobs:
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
             aws s3 sync --exclude "*substrate_*" "${s3_dst}" ./assets/
+            rm -f ./assets/stub-*
             git clone https://github.com/hashicorp/vagrant vagrant
             mkdir -p vagrant/pkg/dist/
             mv assets/* vagrant/pkg/dist/
@@ -498,10 +499,9 @@ jobs:
             fi
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
-            packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./shasums" -- ./scripts/sign.sh ${VERSION}
-            rm -f ./assets/*
-            mv ./shasums/* ./assets/
-            ls -l ./assets
+            packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
+            mv ./assets/* ../assets/
+            ls -l ../assets
       - *CLEANUP_STEP
       - persist_to_workspace:
           root: .
