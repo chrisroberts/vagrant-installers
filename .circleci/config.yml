@@ -241,8 +241,13 @@ jobs:
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
             mkdir -p assets substrate-assets
-            aws s3 cp --quiet --recursive --include "substrate*" "${s3_dst}" ./substrate-assets/
-            aws s3 cp --quiet --recursive --include "vagrant*" "${s3_dst}" ./assets/
+            for name in $(aws s3 ls s3://vagrant-ci-private/chrisroberts/vagrant-installers/v10.0.4/ | awk '{print $4}'); do
+              if [[ "${name}" = "vagrant_"* ]]; then
+                touch "./assets/${name}"
+              else
+                touch "./substrate-assets/${name}"
+              fi
+            done
       - persist_to_workspace:
           root: .
           paths:
@@ -398,6 +403,13 @@ jobs:
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
             rm -rf ./assets
+            echo "Loading any existing substrate assets..."
+            if [ "${CIRCLE_TAG}" != "" ]; then
+              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+            else
+              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
+            fi
+            aws s3 sync --include "substrate_*" "${s3_dst}" ./substrate-assets/
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
@@ -461,10 +473,18 @@ jobs:
           at: .
       - run:
           name: Sign packages
+          no_output_timeout: 45m
           command: |
             set +e
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
+            echo "Fetching existing packages..."
+            if [ "${CIRCLE_TAG}" != "" ]; then
+              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+            else
+              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
+            fi
+            aws s3 sync --include "vagrant_*" "${s3_dst}" ./assets/
             git clone https://github.com/hashicorp/vagrant vagrant
             mkdir -p vagrant/pkg/dist/
             mv assets/* vagrant/pkg/dist/
@@ -496,7 +516,12 @@ jobs:
             set +e
             echo "THIS IS CURRENTLY STUBBED"
             exit 0
-
+            if [ "${CIRCLE_TAG}" != "" ]; then
+              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+            else
+              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
+            fi
+            aws s3 sync --include "vagrant_*" "${s3_dst}" ./assets/
             export AWS_ACCESS_KEY_ID="${AWS_RELEASE_ID}"
             export AWS_SECRET_ACCESS_KEY="${AWS_RELEASE_KEY}"
             echo "Uploading to the releases site..."
