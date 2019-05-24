@@ -39,7 +39,7 @@ reference:
       packet-exec run -ssh-key /tmp/packet-key -- touch .complete
       unset PACKET_EXEC_PERSIST
       export PKT_VAGRANT_BUILD_TYPE="package"
-      packet-exec run -ssh-key /tmp/packet-key -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
+      packet-exec run -ssh-key /tmp/packet-key -- "if [ -f Vagrantfile ]; then vagrant destroy --force; fi" > /tmp/cmd-output 2>&1 &
       pid=$!
       until [ -f /tmp/cmd-output ]; do
         sleep 0.1
@@ -476,7 +476,7 @@ jobs:
             fi
             unset PACKET_EXEC_PERSIST
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
-            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_JOB_NUM}"
+            export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
             packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
       - *CLEANUP_STEP
       - persist_to_workspace:
