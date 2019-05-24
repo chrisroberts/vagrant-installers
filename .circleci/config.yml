@@ -174,7 +174,9 @@ reference:
               pushd ./assets
               uploads=""
               for file in * ; do
+                echo "Checking file: ${file}"
                 if [[ "${file}" = "stub-"* ]]; then
+                  echo "Skipping ${file} since it is a stub"
                   continue
                 fi
                 aws s3 ls "${s3_dst}${file}"
@@ -497,11 +499,13 @@ jobs:
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
             packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
+            rm -f ./assets/vagrant_*
+            ls -l ./assets
       - *CLEANUP_STEP
       - persist_to_workspace:
           root: .
           paths:
-            - ./assets/*SHA256SUMS*
+            - ./assets/*
   release_packages:
     environment:
       <<: *ENVIRONMENT
