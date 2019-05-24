@@ -409,7 +409,7 @@ jobs:
             else
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
-            aws s3 sync --include "substrate_*" "${s3_dst}" ./substrate-assets/
+            aws s3 sync --exclude "*vagrant_*" "${s3_dst}" ./substrate-assets/
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
@@ -484,7 +484,7 @@ jobs:
             else
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
-            aws s3 sync --include "vagrant_*" "${s3_dst}" ./assets/
+            aws s3 sync --exclude "*substrate_*" "${s3_dst}" ./assets/
             git clone https://github.com/hashicorp/vagrant vagrant
             mkdir -p vagrant/pkg/dist/
             mv assets/* vagrant/pkg/dist/
@@ -494,7 +494,6 @@ jobs:
               slack -s error -m "Failed to determine package version for signing"
               exit 1
             fi
-            unset PACKET_EXEC_PERSIST
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
             packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
