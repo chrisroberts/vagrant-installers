@@ -237,8 +237,8 @@ jobs:
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
             mkdir -p assets substrate-assets
-            aws s3 cp --recursive --include "substrate*" "${s3_dst}" ./substrate-assets/
-            aws s3 cp --recursive --include "vagrant*" "${s3_dst}" ./assets/
+            aws s3 cp --quiet --recursive --include "substrate*" "${s3_dst}" ./substrate-assets/
+            aws s3 cp --quiet --recursive --include "vagrant*" "${s3_dst}" ./assets/
       - persist_to_workspace:
           root: .
           paths:
@@ -264,6 +264,7 @@ jobs:
               [*windows_x86_64.zip]="win-7"
               [*windows_i686.zip]="win-7"
             )
+            touch circle-substrates-required
             for ptrn in "${!list[@]}"; do
               path=(substrate-assets/${ptrn})
               if [ ! -f "${path}" ]; then
@@ -296,6 +297,7 @@ jobs:
               [*x86_64.msi]="win-7"
               [*i686.msi]="win-7"
             )
+            touch circle-packages-required
             for ptrn in "${!list[@]}"; do
               path=(assets/${ptrn})
               if [ -f "${path}" ]; then
@@ -342,13 +344,13 @@ jobs:
           name: Start packet guests
           command: |
             set +e
-            if [ ! -f ./circle-substrates-required ]; then
+            guests=$(<./circle-substrates-required)
+            if [ "${guests}" == "" ]; then
               echo "No substrates to build"
               exit
             fi
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
-            guests=$(<./circle-substrates-required)
             rm -rf ./substrate-assets ./assets
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
@@ -380,14 +382,13 @@ jobs:
           name: Restart packet guests
           command: |
             set +e
-            # package type will start all available guests
-            if [ ! -f ./circle-substrates-required ]; then
-              echo "No substrates to build"
+            guests=$(<./circle-packages-required)
+            if [ "${guests}" == "" ]; then
+              echo "No packages to build"
               exit
             fi
             echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
             chmod 600 /tmp/packet-key
-            guests=$(<./circle-substrates-required)
             rm -rf ./assets
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
