@@ -220,7 +220,7 @@ jobs:
             if [ "${CIRCLE_TAG}" = "" ]; then
               aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-master.gem vagrant-master.gem > /tmp/cmd-output 2>&1
             else
-              url=$(curl -SsL -H "Content-Type: application/json" "https://api.github.com/repos/chrisroberts/vagrant-installers/releases/tags/v2.2.5.dev+fab45b5ec" | jq -r '.assets[] | select(.name | contains(".gem")) | .url')
+              url=$(curl -SsL -H "Content-Type: application/json" "https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/releases/tags/${CIRCLE_TAG}" | jq -r '.assets[] | select(.name | contains(".gem")) | .url')
               curl -H "Accept: application/octet-stream" -SsL -o "vagrant-${CIRCLE_TAG}.gem" "${url}" > /tmp/cmd-output 2>&1
             fi
             result=$?
@@ -249,7 +249,7 @@ jobs:
             fi
             mkdir -p assets substrate-assets
             touch "./substrate-assets/${CIRCLE_BUILD_NUM}" "./assets/${CIRCLE_BUILD_NUM}"
-            for name in $(aws s3 ls s3://vagrant-ci-private/chrisroberts/vagrant-installers/v10.0.4/ | awk '{print $4}'); do
+            for name in $(aws s3 ls s3://vagrant-ci-private/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/v10.0.4/ | awk '{print $4}'); do
               if [[ "${name}" = "vagrant_"* ]]; then
                 touch "./assets/${name}"
               else
