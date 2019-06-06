@@ -161,7 +161,7 @@ reference:
         - attach_workspace:
             at: .
         - run:
-            name: Upload packages
+            name: Upload assets
             command: |
               set +e
               if [ "${CIRCLE_TAG}" != "" ]; then
@@ -170,7 +170,6 @@ reference:
                 s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
               fi
               mkdir -p assets
-              mv ./substrate-assets/* ./assets/
               pushd ./assets
               ls -lh
               uploads=""
@@ -196,18 +195,7 @@ reference:
                 slack -m "New installer assets available:\n\n${uploads}\n\n> ${s3_dst}"
               fi
               exit
-        - *CLEANUP_STEP
 jobs:
-  tester:
-    environment:
-      <<: *ENVIRONMENT
-    docker: *builder
-    steps:
-      - run:
-          name: Test Job
-          command: |
-            set +e
-            echo "Value: ${TEST_VAR}"
   load_gem:
     environment:
       <<: *ENVIRONMENT
@@ -233,13 +221,13 @@ jobs:
           root: .
           paths:
             - ./*.gem
-  fetch_existing_assets:
+  fetch_existing_packages:
     environment:
       <<: *ENVIRONMENT
     docker: *builder
     steps:
       - run:
-          name: Fetch previous builds
+          name: Fetch previously built packages
           command: |
             set +e
             if [ "${CIRCLE_TAG}" != "" ]; then
@@ -247,19 +235,35 @@ jobs:
             else
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
-            mkdir -p assets substrate-assets
-            touch "./substrate-assets/${CIRCLE_BUILD_NUM}" "./assets/${CIRCLE_BUILD_NUM}"
-            for name in $(aws s3 ls s3://vagrant-ci-private/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/v10.0.4/ | awk '{print $4}'); do
-              if [[ "${name}" = "vagrant_"* ]]; then
-                touch "./assets/${name}"
-              else
-                touch "./substrate-assets/${name}"
-              fi
+            mkdir -p assets
+            touch "./assets/stub-${CIRCLE_BUILD_NUM}"
+            for name in $(aws s3 ls "${s3_dst}" | awk '{print $4}'); do
+              touch "./assets/${name}"
             done
       - persist_to_workspace:
           root: .
           paths:
             - ./assets/*
+  fetch_existing_substrates:
+    environment:
+      <<: *ENVIRONMENT
+    docker: *builder
+    steps:
+      - checkout
+      - run:
+          name: Fetch previous builds
+          command: |
+            set +e
+            sha=$(git rev-parse --short "${CIRCLE_SHA1}")
+            s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
+            mkdir -p substrate-assets
+            touch "./substrate-assets/stub-${CIRCLE_BUILD_NUM}"
+            for name in $(aws s3 ls "${s3_dst}" | awk '{print $4}'); do
+              touch "./substrate-assets/${name}"
+            done
+      - persist_to_workspace:
+          root: .
+          paths:
             - ./substrate-assets/*
   required_substrate_guests:
     environment:
@@ -646,7 +650,43 @@ jobs:
       PKT_VAGRANT_ONLY_BOXES: win-7
     <<: *PACKAGE
   upload_substrates:
-    <<: *UPLOAD
+    environment:
+      <<: *ENVIRONMENT
+    docker: *builder
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Upload substrates
+          command: |
+            set +e
+            sha=$(git rev-parse --short "${CIRCLE_SHA1}")
+            s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
+            mkdir -p substrate-assets
+            pushd substrate-assets
+            ls -lh
+            uploads=""
+            for file in *; do
+              if [[ "${file}" = "stub-"* ]]; then
+                echo "Skipping ${file} since it is a stub"
+                continue
+              fi
+              aws s3 ls "${s3_dst}${file}"
+              if [ $? -ne 0 ]; then
+                aws s3 cp "${file}" "${s3_dst}" > /tmp/cmd-output 2>&1
+                result=$?
+                cat /tmp/cmd-output
+                if [ $result -ne 0 ]; then
+                  slack -s error -m "Failed to upload substrate asset \`${file}\`" -f /tmp/cmd-output
+                  exit $result
+                fi
+                uploads="${uploads}\n${file}"
+              fi
+            done
+            if [ "${uploads}" != "" ]; then
+              echo -e "New substrate assets uploaded\n${uploads}"
+            fi
   upload_packages:
     <<: *UPLOAD
   upload_shasums:
@@ -659,16 +699,18 @@ workflows:
           <<: *DEFAULT_WORKFLOW
       - packet_device:
           <<: *DEFAULT_WORKFLOW
-      - fetch_existing_assets:
+      - fetch_existing_substrates:
+          <<: *DEFAULT_WORKFLOW
+      - fetch_existing_packages:
           <<: *DEFAULT_WORKFLOW
       - required_substrate_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - fetch_existing_assets
+            - fetch_existing_substrates
       - required_package_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
-            - fetch_existing_assets
+            - fetch_existing_packages
       - start_substrate_guests:
           <<: *DEFAULT_WORKFLOW
           requires:
