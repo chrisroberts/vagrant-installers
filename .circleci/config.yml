@@ -172,6 +172,7 @@ reference:
               mkdir -p assets
               mv ./substrate-assets/* ./assets/
               pushd ./assets
+              ls -lh
               uploads=""
               for file in * ; do
                 echo "Checking file: ${file}"
