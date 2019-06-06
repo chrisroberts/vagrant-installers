@@ -705,10 +705,12 @@ jobs:
   prerelease_publish:
     environment:
       <<: *ENVIRONMENT
-      docker: *builder
-      steps: |
-        set +e
-        exit
+    docker: *builder
+    steps:
+      - checkout
+      - run: |
+          set +e
+          exit
           gem=(vagrant-*.gem)
           gem_version="${gem##vagrant-}"
           gem_version="${gem_version%%.gem}"
@@ -721,7 +723,6 @@ jobs:
             ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -replace ${version} ${gem} > .output 2>&1
           fi
           slack -m "New Vagrant installers release triggered: *${version}*"
-
 workflows:
   version: 2
   package:
