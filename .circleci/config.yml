@@ -4,8 +4,8 @@ reference:
     builder: &builder
       - image: $BUILDER_IMAGE
         auth:
-          username: $BUILDER_IMAGE_USERNAME
-          password: $BUILDER_IMAGE_PASSWORD
+          username: $BUILDER_USERNAME
+          password: $BUILDER_PASSWORD
   environment: &ENVIRONMENT
     SLACK_USERNAME: Vagrant
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
@@ -216,8 +216,12 @@ jobs:
           name: Fetch Vagrant RubyGem
           command: |
             set +e
-            version=$(echo "${CIRCLE_TAG:-master}" | sed 's/^v//')
-            aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-${version}.gem vagrant-${version}.gem > /tmp/cmd-output 2>&1
+            if [ "${CIRCLE_TAG}" = "" ]; then
+              aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-master.gem vagrant-master.gem > /tmp/cmd-output 2>&1
+            else
+              url=$(curl -SsL -H "Content-Type: application/json" "https://api.github.com/repos/chrisroberts/vagrant-installers/releases/tags/v2.2.5.dev+fab45b5ec" | jq -r '.assets[] | select(.name | contains(".gem")) | .url')
+              curl -SsL -o "vagrant-${CIRCLE_TAG}.gem" "${url}"
+            fi
             result=$?
             cat /tmp/cmd-output
             if [ $result -ne 0 ]; then
