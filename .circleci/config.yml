@@ -220,7 +220,7 @@ jobs:
               aws s3 cp ${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/vagrant/vagrant-master.gem vagrant-master.gem > /tmp/cmd-output 2>&1
             else
               url=$(curl -SsL -H "Content-Type: application/json" "https://api.github.com/repos/chrisroberts/vagrant-installers/releases/tags/v2.2.5.dev+fab45b5ec" | jq -r '.assets[] | select(.name | contains(".gem")) | .url')
-              curl -H "Accept: application/octet-stream" -SsL -o "vagrant-${CIRCLE_TAG}.gem" "${url}"
+              curl -H "Accept: application/octet-stream" -SsL -o "vagrant-${CIRCLE_TAG}.gem" "${url}" > /tmp/cmd-output 2>&1
             fi
             result=$?
             cat /tmp/cmd-output
