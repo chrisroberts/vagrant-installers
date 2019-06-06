@@ -462,7 +462,7 @@ jobs:
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do echo -n .; sleep 1; done"
+            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do echo -n .; sleep 120; done"
   clean_guests:
     environment:
       <<: *ENVIRONMENT
