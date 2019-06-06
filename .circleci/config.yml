@@ -24,13 +24,20 @@ reference:
           only: /build.*/
         tags:
           only: /.*/
+    prerelease_workflow: &PRERELEASE_WORKFLOW
+      context: vagrant-test
+      filters:
+        branches:
+          only: /build.*/
+          tags:
+            only: /^v.+\+[a-z0-9]+$/
     release_workflow: &RELEASE_WORKFLOW
       context: vagrant-test
       filters:
         branches:
           ignore: /.*/
         tags:
-          only: /.*/
+          only: /^v\d+\.\d+\.\d+$/
     cleanup: &CLEANUP |-
       set +e
       echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
@@ -68,6 +75,8 @@ reference:
               rm -f ./substrate-assets/*
               export SLACK_TITLE="Vagrant Packaging - Substrate ${PKT_VAGRANT_ONLY_BOXES}"
               substrates=$(<./circle-substrates-required)
+              echo "Current list of missing substrates:"
+              echo "${substrates}"
               for sub in "${substrates}"; do
                 if [ "${PKT_VAGRANT_ONLY_BOXES}" == "${sub}" ]; then
                   build=1
@@ -117,7 +126,9 @@ reference:
               rm -f ./assets/*
               export SLACK_TITLE="Vagrant Packaging - Package ${PKT_VAGRANT_ONLY_BOXES}"
               packages=$(<./circle-packages-required)
-              for sub in "${substrates}"; do
+              echo "Current list of missing packages:"
+              echo "${packages}"
+              for sub in "${packages}"; do
                 if [ "${PKT_VAGRANT_ONLY_BOXES}" == "${sub}" ]; then
                   build=1
                 fi
@@ -466,7 +477,7 @@ jobs:
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do echo -n .; sleep 120; done"
+            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do sleep 1; done"
   clean_guests:
     environment:
       <<: *ENVIRONMENT
@@ -691,6 +702,26 @@ jobs:
     <<: *UPLOAD
   upload_shasums:
     <<: *UPLOAD
+  prerelease_publish:
+    environment:
+      <<: *ENVIRONMENT
+      docker: *builder
+      steps: |
+        set +e
+        exit
+          gem=(vagrant-*.gem)
+          gem_version="${gem##vagrant-}"
+          gem_version="${gem_version%%.gem}"
+          export GITHUB_TOKEN="${HASHIBOT_TOKEN}"
+          if [ "${CIRCLE_TAG}" = "" ]; then
+            version="v${gem_version}+$(git rev-parse --short "${CIRCLE_SHA1}")"
+            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -prerelease -delete -replace ${version} ${gem} > .output 2>&1
+          else
+            version="${CIRCLE_TAG}"
+            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -replace ${version} ${gem} > .output 2>&1
+          fi
+          slack -m "New Vagrant installers release triggered: *${version}*"
+
 workflows:
   version: 2
   package:
@@ -853,3 +884,7 @@ workflows:
           <<: *RELEASE_WORKFLOW
           requires:
             - sign_packages
+      - prerelease_publish:
+          <<: *PRERELEASE_WORKFLOW
+          requires:
+            - upload_packages
