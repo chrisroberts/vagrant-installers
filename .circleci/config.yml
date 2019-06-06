@@ -29,8 +29,8 @@ reference:
       filters:
         branches:
           only: /build.*/
-          tags:
-            only: /^v.+\+[a-z0-9]+$/
+        tags:
+          only: /^v.+\+[a-z0-9]+$/
     release_workflow: &RELEASE_WORKFLOW
       context: vagrant-test
       filters:
