@@ -163,11 +163,11 @@ if [[ "${linux_os}" != "ubuntu" ]]; then
             popd
         fi
 
-        # libxcrypt-compat
         export PATH="/usr/local/bin:$PATH"
 
+        # libxcrypt-compat
         # We can't upgrade gcc on 32bit so don't attempt to build libxcrypt
-        if [ "${host_arch}" = "i686" ]; then
+        if [ "${host_arch}" != "i686" ]; then
             echo_stderr "   -> Installing libxcrypt-compat..."
             curl -L -s -o libxcrypt.tar.gz https://github.com/besser82/libxcrypt/archive/v4.4.6.tar.gz
             tar xzf libxcrypt.tar.gz
