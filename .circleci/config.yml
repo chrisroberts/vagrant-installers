@@ -389,8 +389,12 @@ jobs:
             chmod 600 /tmp/packet-key
             rm -rf ./substrate-assets ./assets
             # package type will start all available guests
+            echo "Substrates to build:"
+            echo "${guests}"
+            guests="${guests/$'\n'/,}"
+            guests="${guests/$' '/}"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            export PKT_VAGRANT_ONLY_BOXES="${guests/$'\n'/,}"
+            export PKT_VAGRANT_ONLY_BOXES="${guests}"
             export PKT_VAGRANT_BUILD_TYPE="substrate"
             packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
@@ -430,6 +434,10 @@ jobs:
             sha=$(git rev-parse --short "${CIRCLE_SHA1}")
             s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
             aws s3 sync "${s3_dst}" ./substrate-assets/
+            echo "Packages to build:"
+            echo "${guests}"
+            guests="${guests/$'\n'/,}"
+            guests="${guests/$' '/}"
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
@@ -445,7 +453,7 @@ jobs:
               slack -s error -m "Failed to destroy builder guests on packet device" -f /tmp/cmd-output -T 10
               exit $result
             fi
-            export PKT_VAGRANT_ONLY_BOXES="${guests/$'\n'/,}"
+            export PKT_VAGRANT_ONLY_BOXES="${guests}"
             packet-exec run -ssh-key /tmp/packet-key -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
