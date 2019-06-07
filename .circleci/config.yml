@@ -474,7 +474,7 @@ jobs:
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do sleep 1; done"
+            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do i=$((i+1)); if [ $i -gt 120 ]; then i=0; echo -n '.'; fi; sleep 1; done"
   clean_guests:
     environment:
       <<: *ENVIRONMENT
@@ -705,6 +705,8 @@ jobs:
     docker: *builder
     steps:
       - checkout
+      - attach_workspace:
+          path: .
       - run: |
           set +e
           if [ "${CIRCLE_TAG}" != "" ]; then
@@ -713,6 +715,12 @@ jobs:
             s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
           fi
           mkdir -p ./assets
+          for file in *; do
+            if [[ "${file}" != "vagrant_"* ]]; then
+              echo "Removing non-package file: ${file}"
+              rm -f "${file}"
+            fi
+          done
           aws s3 sync "${s3_dst}" ./assets/
           export GITHUB_TOKEN="${HASHIBOT_TOKEN}"
           ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -prerelease -replace ${CIRCLE_TAG} ./assets/ > .output 2>&1
