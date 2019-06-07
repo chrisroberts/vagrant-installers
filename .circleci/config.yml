@@ -427,12 +427,9 @@ jobs:
             chmod 600 /tmp/packet-key
             rm -rf ./assets
             echo "Loading any existing substrate assets..."
-            if [ "${CIRCLE_TAG}" != "" ]; then
-              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
-            else
-              s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
-            fi
-            aws s3 sync --exclude "*vagrant_*" "${s3_dst}" ./substrate-assets/
+            sha=$(git rev-parse --short "${CIRCLE_SHA1}")
+            s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
+            aws s3 sync "${s3_dst}" ./substrate-assets/
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
@@ -516,7 +513,7 @@ jobs:
             else
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
-            aws s3 sync --exclude "*substrate_*" "${s3_dst}" ./assets/
+            aws s3 sync "${s3_dst}" ./assets/
             rm -f ./assets/stub-*
             git clone https://github.com/hashicorp/vagrant vagrant
             mkdir -p vagrant/pkg/dist/
@@ -558,7 +555,7 @@ jobs:
             else
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
-            aws s3 sync --include "vagrant_*" "${s3_dst}" ./assets/
+            aws s3 sync "${s3_dst}" ./assets/
             export AWS_ACCESS_KEY_ID="${AWS_RELEASE_ID}"
             export AWS_SECRET_ACCESS_KEY="${AWS_RELEASE_KEY}"
             echo "Uploading to the releases site..."
@@ -710,19 +707,20 @@ jobs:
       - checkout
       - run: |
           set +e
-          exit
-          gem=(vagrant-*.gem)
-          gem_version="${gem##vagrant-}"
-          gem_version="${gem_version%%.gem}"
-          export GITHUB_TOKEN="${HASHIBOT_TOKEN}"
-          if [ "${CIRCLE_TAG}" = "" ]; then
-            version="v${gem_version}+$(git rev-parse --short "${CIRCLE_SHA1}")"
-            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -prerelease -delete -replace ${version} ${gem} > .output 2>&1
+          if [ "${CIRCLE_TAG}" != "" ]; then
+            s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
           else
-            version="${CIRCLE_TAG}"
-            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -replace ${version} ${gem} > .output 2>&1
+            s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
           fi
-          slack -m "New Vagrant installers release triggered: *${version}*"
+          mkdir -p ./assets
+          aws s3 sync "${s3_dst}" ./assets/
+          export GITHUB_TOKEN="${HASHIBOT_TOKEN}"
+          ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -prerelease -replace ${CIRCLE_TAG} ./assets/ > .output 2>&1
+          if [ $? -ne 0 ]; then
+            slack -s error -m "Failed to upload installers assets to prerelease version ${CIRCLE_TAG}"
+            exit 1
+          fi
+          slack -m "New Vagrant development installers available:\n> https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/releases/${CIRCLE_TAG}"
 workflows:
   version: 2
   package:
