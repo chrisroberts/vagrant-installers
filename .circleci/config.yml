@@ -389,10 +389,8 @@ jobs:
             chmod 600 /tmp/packet-key
             rm -rf ./substrate-assets ./assets
             # package type will start all available guests
-            echo "Substrates to build:"
-            echo "${guests}"
-            guests="${guests/$'\n'/,}"
-            guests="${guests/$' '/}"
+            guests="${guests//$'\n'/,}"
+            echo "Substrates to build: ${guests}"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_ONLY_BOXES="${guests}"
             export PKT_VAGRANT_BUILD_TYPE="substrate"
@@ -434,10 +432,8 @@ jobs:
             sha=$(git rev-parse --short "${CIRCLE_SHA1}")
             s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
             aws s3 sync "${s3_dst}" ./substrate-assets/
-            echo "Packages to build:"
-            echo "${guests}"
-            guests="${guests/$'\n'/,}"
-            guests="${guests/$' '/}"
+            guests="${guests//$'\n'/,}"
+            echo "Packages to build: ${guests}"
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
