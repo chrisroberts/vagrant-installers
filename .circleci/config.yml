@@ -77,11 +77,11 @@ reference:
               substrates=$(<./circle-substrates-required)
               echo "Current list of missing substrates:"
               echo "${substrates}"
-              for sub in "${substrates}"; do
+              while read sub; do
                 if [ "${PKT_VAGRANT_ONLY_BOXES}" == "${sub}" ]; then
                   build=1
                 fi
-              done
+              done < ./circle-substrates-required
               if [ "${build}" != "1" ]; then
                 echo "Substrate does not need to be built!"
                 touch "./substrate-assets/stub-${CIRCLE_BUILD_NUM}"
@@ -128,11 +128,11 @@ reference:
               packages=$(<./circle-packages-required)
               echo "Current list of missing packages:"
               echo "${packages}"
-              for sub in "${packages}"; do
-                if [ "${PKT_VAGRANT_ONLY_BOXES}" == "${sub}" ]; then
+              while read pack; do
+                if [ "${PKT_VAGRANT_ONLY_BOXES}" == "${pack}" ]; then
                   build=1
                 fi
-              done
+              done < ./circle-packages-required
               if [ "${build}" != "1" ]; then
                 echo "Package does not need to be built!"
                 touch "./assets/stub-${CIRCLE_BUILD_NUM}"
