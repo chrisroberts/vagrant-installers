@@ -7,8 +7,13 @@ nc -z -w3 192.168.1.1 8123 && export http_proxy="http://192.168.1.1:8123"
 mkdir -p /vagrant/substrate-assets
 chmod 755 /vagrant/package/package.sh
 
-yum -d 0 -e 0 -y install chrpath gcc make perl
-yum -d 0 -e 0 -y install perl-Data-Dumper
+hostos=$(uname -a)
+
+if [[ "${hostos}" = *"x86_64"* ]]; then
+    sudo yum install -y centos-release-scl
+    sudo yum install -y devtoolset-8-toolchain
+    source /opt/rh/devtoolset-8/enable
+fi
 
 set -e
 

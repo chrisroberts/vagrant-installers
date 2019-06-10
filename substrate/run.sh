@@ -164,24 +164,6 @@ if [[ "${linux_os}" != "ubuntu" ]]; then
         fi
 
         export PATH="/usr/local/bin:$PATH"
-
-        # libxcrypt-compat
-        # We can't upgrade gcc on 32bit so don't attempt to build libxcrypt
-        if [ "${host_arch}" != "i686" ]; then
-            echo_stderr "   -> Installing libxcrypt-compat..."
-            curl -L -s -o libxcrypt.tar.gz https://github.com/besser82/libxcrypt/archive/v4.4.6.tar.gz
-            tar xzf libxcrypt.tar.gz
-            pushd libxcrypt*
-
-            CFLAGSORG=$CFLAGS
-            export CFLAGS="-Wno-conversion"
-            ./bootstrap
-            ./configure --prefix="${embed_dir}"
-            make
-            make install
-            export CFLAGS=$CFLAGSORG
-            popd
-        fi
     fi
 fi
 
@@ -207,6 +189,26 @@ if [[ "${host_os}" = "darwin" ]]; then
 else
     export LDFLAGS="${LDFLAGS} -L${embed_dir}/lib64 -Wl,-rpath=XORIGIN/../lib:XORIGIN/../lib64:/opt/vagrant/embedded/lib:/opt/vagrant/embedded/lib64"
     libtool="libtool"
+fi
+
+# libxcrypt-compat
+# We can't upgrade gcc on 32bit so don't attempt to build libxcrypt
+if [ "${linux_os}" = "centos" ]; then
+    if [ "${host_arch}" != "i686" ]; then
+        echo_stderr "   -> Installing libxcrypt-compat..."
+        curl -L -s -o libxcrypt.tar.gz https://github.com/besser82/libxcrypt/archive/v4.4.6.tar.gz
+        tar xzf libxcrypt.tar.gz
+        pushd libxcrypt*
+
+        # CFLAGSORG=$CFLAGS
+        # export CFLAGS="-Wno-conversion"
+        ./bootstrap
+        ./configure --prefix="${embed_dir}" --libdir="${embed_dir}/lib"
+        make
+        make install
+        #            export CFLAGS=$CFLAGSORG
+        popd
+    fi
 fi
 
 # libffi

@@ -16,6 +16,7 @@ reference:
     PACKET_EXEC_PREFER_FACILITIES: ewr1,iad1,ord1,dfw1,ams1,atl1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
     PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware
+    PACKET_EXEC_SSH_KEY: /tmp/workflow/ssh-key
   copypasta:
     default_workflow: &DEFAULT_WORKFLOW
       context: vagrant-test
@@ -38,15 +39,19 @@ reference:
           ignore: /.*/
         tags:
           only: /^v\d+\.\d+\.\d+$/
+    setup: &SETUP |-
+      echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
+      chmod 600 "${PACKET_EXEC_SSH_KEY}"
+      packet-exec run -- "mkdir -p '/tmp/${CIRCLE_WORKFLOW_ID}/'; touch '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'"
     cleanup: &CLEANUP |-
+      packet-exec run -- "rm -f '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); if [ \"${f}\" = \"/tmp/${CIRCLE_WORKFLOW_ID}/*\" ]; then rm -rf '/tmp/${CIRCLE_WORKFLOW_ID}'; fi"
+    teardown: &TEARDOWN |-
       set +e
-      echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-      chmod 600 /tmp/packet-key
       export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-      packet-exec run -ssh-key /tmp/packet-key -- touch .complete
+      packet-exec run -- touch .complete
       unset PACKET_EXEC_PERSIST
       export PKT_VAGRANT_BUILD_TYPE="package"
-      packet-exec run -ssh-key /tmp/packet-key -- "if [ -f Vagrantfile ]; then vagrant destroy --force; fi" > /tmp/cmd-output 2>&1 &
+      packet-exec run -- "if [ -f Vagrantfile ] && [ ! -d '/tmp/${CIRCLE_WORKFLOW_ID}' ]; then vagrant destroy --force; fi" > /tmp/cmd-output 2>&1 &
       pid=$!
       until [ -f /tmp/cmd-output ]; do
         sleep 0.1
@@ -56,6 +61,15 @@ reference:
       result=$?
       rm /tmp/packet-key
       exit $result
+    setup_step: &SETUP_STEP
+      run:
+        name: Setup packet guest usage
+        command: *SETUP
+    teardown_step: &TEARDOWN_STEP
+      run:
+        name: Teardown packet guest usage
+        command: *TEARDOWN
+        when: always
     cleanup_step: &CLEANUP_STEP
       run:
         name: Clean packet guests
@@ -138,6 +152,7 @@ reference:
         - checkout
         - attach_workspace:
             at: .
+        - *SETUP_STEP
         - run:
             name: Build substrate
             no_output_timeout: 30m
@@ -154,18 +169,16 @@ reference:
                 fi
               done < ./circle-substrates-required
               if [ "${build}" != "1" ]; then
-                echo "Substrate does not need to be built!"
+                echo "Substrate does not need to be built! - ${PKT_VAGRANT_ONLY_BOXES}"
                 touch "./substrate-assets/stub-${CIRCLE_BUILD_NUM}"
                 exit
               fi
-              echo "Substrate not found - building..."
-              echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-              chmod 600 /tmp/packet-key
+              echo "Substrate not found - building ${PKT_VAGRANT_ONLY_BOXES}..."
               export PKT_VAGRANT_BUILD_TYPE="substrate"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
               pkg_dir="${CIRCLE_BUILD_NUM}"
               export PKT_VAGRANT_INSTALLER_VAGRANT_SUBSTRATE_OUTPUT_DIR="${pkg_dir}"
-              packet-exec run -ssh-key /tmp/packet-key -download "./${pkg_dir}/*:./substrate-assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
+              packet-exec run -download "./${pkg_dir}/*:./substrate-assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
               pid=$!
               until [ -f /tmp/cmd-output ]; do
                 sleep 0.1
@@ -173,11 +186,11 @@ reference:
               tail --quiet --pid $pid -f /tmp/cmd-output &
               wait $pid
               result=$?
-              rm /tmp/packet-key
               if [ $result -ne 0 ]; then
                 slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 10
               fi
               exit $result
+        - *TEARDOWN_STEP
         - *UPLOAD_SUBSTRATES
         - *CLEANUP_STEP
     package: &PACKAGE
@@ -186,8 +199,9 @@ reference:
         - checkout
         - attach_workspace:
             at: .
+        - *SETUP_STEP
         - run:
-            name: Build packages
+            name: Build package
             no_output_timeout: 1h
             command: |
               set +e
@@ -202,18 +216,16 @@ reference:
                 fi
               done < ./circle-packages-required
               if [ "${build}" != "1" ]; then
-                echo "Package does not need to be built!"
+                echo "Package does not need to be built! - ${PKT_VAGRANT_ONLY_BOXES}"
                 touch "./assets/stub-${CIRCLE_BUILD_NUM}"
                 exit
               fi
-              echo "Package not found - building..."
-              echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-              chmod 600 /tmp/packet-key
+              echo "Package not found - building ${PKT_VAGRANT_ONLY_BOXES}..."
               pkg_dir="${CIRCLE_BUILD_NUM}"
               export PKT_VAGRANT_BUILD_TYPE="package"
               export PKT_VAGRANT_INSTALLER_VAGRANT_PACKAGE_OUTPUT_DIR="${pkg_dir}"
               export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-              packet-exec run -ssh-key /tmp/packet-key -download "./${pkg_dir}/*:./assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
+              packet-exec run -download "./${pkg_dir}/*:./assets" -- ./.runner-vmware.sh > /tmp/cmd-output 2>&1 &
               pid=$!
               until [ -f /tmp/cmd-output ]; do
                 sleep 0.1
@@ -221,12 +233,12 @@ reference:
               tail --quiet --pid $pid -f /tmp/cmd-output &
               wait $pid
               result=$?
-              rm /tmp/packet-key
               mkdir -p assets
               if [ $result -ne 0 ]; then
                 slack -s error -m "Failed to build Vagrant installer packages" -f /tmp/cmd-output -T 10
               fi
               exit $result
+        - *TEARDOWN_STEP
         - *UPLOAD_ASSETS
         - *CLEANUP_STEP
 jobs:
@@ -399,6 +411,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
+      - *SETUP_STEP
       - run:
           name: Start packet guests
           command: |
@@ -408,16 +421,16 @@ jobs:
               echo "No substrates to build"
               exit
             fi
-            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-            chmod 600 /tmp/packet-key
             rm -rf ./substrate-assets ./assets
+            # ensure there are no stray guests still running on the system
+            packet-exec run -- pkill -f vmware-vmx
             # package type will start all available guests
             guests="${guests//$'\n'/,}"
             echo "Substrates to build: ${guests}"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_ONLY_BOXES="${guests}"
             export PKT_VAGRANT_BUILD_TYPE="substrate"
-            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
+            packet-exec run -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
@@ -425,11 +438,11 @@ jobs:
             tail -f --quiet --pid $pid /tmp/cmd-output
             wait $pid
             result=$?
-            rm /tmp/packet-key
             if [ $result -ne 0 ]; then
               slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 10
             fi
             exit $result
+      - *TEARDOWN_STEP
       - *CLEANUP_STEP
   start_package_guests:
     environment:
@@ -439,6 +452,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
+      - *SETUP_STEP
       - run:
           name: Restart packet guests
           no_output_timeout: 30m
@@ -449,8 +463,6 @@ jobs:
               echo "No packages to build"
               exit
             fi
-            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-            chmod 600 /tmp/packet-key
             rm -rf ./assets
             echo "Loading any existing substrate assets..."
             sha=$(git rev-parse --short "${CIRCLE_SHA1}")
@@ -461,7 +473,7 @@ jobs:
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
-            packet-exec run -ssh-key /tmp/packet-key -upload -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
+            packet-exec run -upload -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
@@ -473,7 +485,7 @@ jobs:
               echo "Guest destruction returned an error but continuing on anyway..."
             fi
             export PKT_VAGRANT_ONLY_BOXES="${guests}"
-            packet-exec run -ssh-key /tmp/packet-key -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
+            packet-exec run -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
               sleep 0.1
@@ -484,8 +496,8 @@ jobs:
             if [ $result -ne 0 ]; then
               slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 10
             fi
-            rm /tmp/packet-key
             exit $result
+      - *TEARDOWN_STEP
       - *CLEANUP_STEP
   secrets_and_cleaner:
     environment:
@@ -496,12 +508,12 @@ jobs:
           name: Provide secrets
           command: |
             set +e
-            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-            chmod 600 /tmp/packet-key
+            echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
+            chmod 600 "${PACKET_EXEC_SSH_KEY}"
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            packet-exec run -ssh-key /tmp/packet-key -- "until [ -f .complete ]; do i=\$((i+1)); if [ \${i} -gt 120 ]; then i=0; echo -n '.'; fi; sleep 1; done"
+            packet-exec run -- "until [ -f .complete ]; do i=\$((i+1)); if [ \${i} -gt 120 ]; then i=0; echo -n '.'; fi; sleep 1; done"
   clean_guests:
     environment:
       <<: *ENVIRONMENT
@@ -527,13 +539,12 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
+      - *SETUP_STEP
       - run:
           name: Sign packages
           no_output_timeout: 45m
           command: |
             set +e
-            echo -e -n "${PACKET_SSH_KEY}" > /tmp/packet-key
-            chmod 600 /tmp/packet-key
             echo "Fetching existing packages..."
             if [ "${CIRCLE_TAG}" != "" ]; then
               s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
@@ -554,9 +565,10 @@ jobs:
             unset PACKET_PERSIST
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
-            packet-exec run -ssh-key /tmp/packet-key -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
+            packet-exec run -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
             mv ./assets/* ../assets/
             ls -l ../assets
+      - *TEARDOWN_STEP
       - *UPLOAD_ASSETS
       - *CLEANUP_STEP
   release_packages:
