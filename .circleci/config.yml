@@ -48,10 +48,9 @@ reference:
     teardown: &TEARDOWN |-
       set +e
       export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-      packet-exec run -- touch .complete
       unset PACKET_EXEC_PERSIST
       export PKT_VAGRANT_BUILD_TYPE="package"
-      packet-exec run -- "if [ -f Vagrantfile ] && [ ! -d '/tmp/${CIRCLE_WORKFLOW_ID}' ]; then vagrant destroy --force; fi" > /tmp/cmd-output 2>&1 &
+      packet-exec run -- "if [ -f Vagrantfile ] && [ ! -d '/tmp/${CIRCLE_WORKFLOW_ID}' ]; then vagrant destroy --force; touch complete; fi" > /tmp/cmd-output 2>&1 &
       pid=$!
       until [ -f /tmp/cmd-output ]; do
         sleep 0.1
@@ -59,7 +58,7 @@ reference:
       tail -f --quiet --pid $pid /tmp/cmd-output
       wait $pid
       result=$?
-      rm /tmp/packet-key
+      rm "${PACKET_EXEC_SSH_KEY}"
       exit $result
     setup_step: &SETUP_STEP
       run:
