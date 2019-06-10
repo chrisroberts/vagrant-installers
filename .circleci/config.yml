@@ -57,7 +57,6 @@ reference:
       tail -f --quiet --pid $pid /tmp/cmd-output
       wait $pid
       result=$?
-      rm "${PACKET_EXEC_SSH_KEY}"
       exit $result
     setup_step: &SETUP_STEP
       run:
@@ -135,7 +134,7 @@ reference:
               cat /tmp/cmd-output
               if [ $result -ne 0 ]; then
                 slack -s error -m "Failed to upload installer asset \`${file}\`" -f /tmp/cmd-output
-                exit 1
+                exit $result
               fi
               uploads="${uploads}\n${file}"
             fi
@@ -275,7 +274,11 @@ jobs:
           command: |
             set +e
             if [ "${CIRCLE_TAG}" != "" ]; then
-              s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+              if [[ "${CIRCLE_TAG}" = *"+"* ]]; then
+                s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+              else
+                s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+              fi
             else
               s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
             fi
