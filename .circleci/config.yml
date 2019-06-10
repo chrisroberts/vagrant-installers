@@ -16,7 +16,7 @@ reference:
     PACKET_EXEC_PREFER_FACILITIES: ewr1,iad1,ord1,dfw1,ams1,atl1,lax1,sea1
     PACKET_EXEC_OPERATING_SYSTEM: ubuntu_18_04
     PACKET_EXEC_PRE_BUILTINS: InstallVmware,InstallVagrant,InstallVagrantVmware
-    PACKET_EXEC_SSH_KEY: /tmp/workflow/ssh-key
+    PACKET_EXEC_SSH_KEY: /tmp/packet-ssh-key
   copypasta:
     default_workflow: &DEFAULT_WORKFLOW
       context: vagrant-test
