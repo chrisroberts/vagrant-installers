@@ -713,20 +713,25 @@ jobs:
             s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}/"
           fi
           mkdir -p ./assets
+          pushd assets
           for file in *; do
             if [[ "${file}" != "vagrant_"* ]]; then
               echo "Removing non-package file: ${file}"
               rm -f "${file}"
             fi
           done
+          popd
           aws s3 sync "${s3_dst}" ./assets/
           export GITHUB_TOKEN="${HASHIBOT_TOKEN}"
           ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -prerelease -replace ${CIRCLE_TAG} ./assets/ > .output 2>&1
-          if [ $? -ne 0 ]; then
+          result=$?
+          cat .output
+          if [ $result -ne 0 ]; then
             slack -s error -m "Failed to upload installers assets to prerelease version ${CIRCLE_TAG}"
-            exit 1
+            exit $result
           fi
           slack -m "New Vagrant development installers available:\n> https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/releases/${CIRCLE_TAG}"
+          exit
 workflows:
   version: 2
   package:
