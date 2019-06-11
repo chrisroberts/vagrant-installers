@@ -512,7 +512,8 @@ jobs:
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             packet-exec run -- "shopt -s nullglob; mkdir -p '/tmp/${CIRCLE_WORKFLOW_ID}'; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); until [ -f '/tmp/${CIRCLE_WORKFLOW_ID}/.halt' ] && [ \"${#f[*]}\" -eq 0 ]; do i=\$((i+1)); if [ \${i} -gt 120 ]; then i=0; echo -n '.'; fi; sleep 1; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); done"
             unset PACKET_EXEC_PERSIST
-            packet-exec run -- "if [ -f Vagrantfile ]; then vagrant destroy -f; fi"
+            unset PACKET_EXEC_PRE_BUILTINS
+            packet-exec run -- "rm -rf '/tmp/${CIRCLE_WORKFLOW_ID}'; if [ -f Vagrantfile ]; then vagrant destroy -f; fi"
   clean_guests:
     environment:
       <<: *ENVIRONMENT
@@ -538,12 +539,13 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-      - *PACKET_SETUP_STEP
       - run:
           name: Sign packages
           no_output_timeout: 45m
           command: |
             set +e
+            echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
+            chmod 600 "${PACKET_EXEC_SSH_KEY}"
             echo "Fetching existing packages..."
             if [ "${CIRCLE_TAG}" != "" ]; then
               if [[ "${CIRCLE_TAG}" = *"+"* ]]; then
@@ -571,7 +573,6 @@ jobs:
             packet-exec run -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
             mv ./assets/* ../assets/
             ls -l ../assets
-      - *PACKET_CLEANUP_STEP
       - *UPLOAD_ASSETS
   release_packages:
     environment:
@@ -601,6 +602,7 @@ jobs:
             export AWS_ACCESS_KEY_ID="${AWS_RELEASE_ID}"
             export AWS_SECRET_ACCESS_KEY="${AWS_RELEASE_KEY}"
             echo "Uploading to the releases site..."
+            exit 1
             hc-releases upload ./assets > .output 2>&1 &
             pid=$!
             until [ -f .output ]; do
