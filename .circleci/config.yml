@@ -44,6 +44,8 @@ reference:
       chmod 600 "${PACKET_EXEC_SSH_KEY}"
       packet-exec run -- "mkdir -p '/tmp/${CIRCLE_WORKFLOW_ID}/'; touch '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'"
     cleanup: &CLEANUP |-
+      echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
+      chmod 600 "${PACKET_EXEC_SSH_KEY}"
       packet-exec run -- "rm -f '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); if [ \"${f}\" = \"/tmp/${CIRCLE_WORKFLOW_ID}/*\" ]; then rm -rf '/tmp/${CIRCLE_WORKFLOW_ID}'; fi"
     teardown: &TEARDOWN |-
       set +e
@@ -702,7 +704,7 @@ jobs:
     steps:
       - checkout
       - attach_workspace:
-          path: .
+          at: .
       - run: |
           set +e
           if [ "${CIRCLE_TAG}" != "" ]; then
