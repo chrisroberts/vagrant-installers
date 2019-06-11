@@ -39,41 +39,35 @@ reference:
           ignore: /.*/
         tags:
           only: /^v\d+\.\d+\.\d+$/
-    setup: &SETUP |-
+    packet_setup: &PACKET_SETUP |-
       echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
       chmod 600 "${PACKET_EXEC_SSH_KEY}"
+      unset PACKET_EXEC_PERSIST
       packet-exec run -- "mkdir -p '/tmp/${CIRCLE_WORKFLOW_ID}/'; touch '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'"
-    cleanup: &CLEANUP |-
+    packet_failure: &PACKET_FAILURE |-
       echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
       chmod 600 "${PACKET_EXEC_SSH_KEY}"
-      packet-exec run -- "rm -f '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); if [ \"${f}\" = \"/tmp/${CIRCLE_WORKFLOW_ID}/*\" ]; then rm -rf '/tmp/${CIRCLE_WORKFLOW_ID}'; fi"
-    teardown: &TEARDOWN |-
-      set +e
-      export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-      export PKT_VAGRANT_BUILD_TYPE="package"
-      packet-exec run -- "if [ -f Vagrantfile ] && [ ! -d '/tmp/${CIRCLE_WORKFLOW_ID}' ]; then vagrant destroy --force; touch complete; fi" > /tmp/cmd-output 2>&1 &
-      pid=$!
-      until [ -f /tmp/cmd-output ]; do
-        sleep 0.1
-      done
-      tail -f --quiet --pid $pid /tmp/cmd-output
-      wait $pid
-      result=$?
-      exit $result
-    setup_step: &SETUP_STEP
+      unset PACKET_EXEC_PERSIST
+      packet-exec run -- "touch '/tmp/${CIRCLE_WORKFLOW_ID}/.halt'"
+    packet_cleanup: &PACKET_CLEANUP |-
+      echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
+      chmod 600 "${PACKET_EXEC_SSH_KEY}"
+      unset PACKET_EXEC_PERSIST
+      packet-exec run -- "rm -f '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); if [ \"${f}\" = \"/tmp/${CIRCLE_WORKFLOW_ID}/*\" ] && [ -f '/tmp/${CIRCLE_WORKFLOW_ID}/.halt' ]; then rm -rf '/tmp/${CIRCLE_WORKFLOW_ID}'; fi"
+    packet_setup_step: &PACKET_SETUP_STEP
       run:
         name: Setup packet guest usage
-        command: *SETUP
-    teardown_step: &TEARDOWN_STEP
+        command: *PACKET_SETUP
+    packet_failure_step: &PACKET_FAILURE_STEP
       run:
-        name: Teardown packet guest usage
-        command: *TEARDOWN
-        when: always
-    cleanup_step: &CLEANUP_STEP
+        name: Mark packet failure
+        command: *PACKET_FAILURE
+        when: on_fail
+    packet_cleanup_step: &PACKET_CLEANUP_STEP
       run:
         name: Clean packet guests
-        when: on_fail
-        command: *CLEANUP
+        when: always
+        command: *PACKET_CLEANUP
     upload_substrates: &UPLOAD_SUBSTRATES
       run:
         name: Upload substrates
@@ -151,7 +145,7 @@ reference:
         - checkout
         - attach_workspace:
             at: .
-        - *SETUP_STEP
+        - *PACKET_SETUP_STEP
         - run:
             name: Build substrate
             no_output_timeout: 30m
@@ -189,16 +183,16 @@ reference:
                 slack -s error -m "Failed to build Vagrant substrate - ${CIRCLE_JOB}" -f /tmp/cmd-output -T 10
               fi
               exit $result
-        - *TEARDOWN_STEP
+        - *PACKET_CLEANUP_STEP
+        - *PACKET_FAILURE_STEP
         - *UPLOAD_SUBSTRATES
-        - *CLEANUP_STEP
     package: &PACKAGE
       docker: *builder
       steps:
         - checkout
         - attach_workspace:
             at: .
-        - *SETUP_STEP
+        - *PACKET_SETUP_STEP
         - run:
             name: Build package
             no_output_timeout: 1h
@@ -237,9 +231,9 @@ reference:
                 slack -s error -m "Failed to build Vagrant installer packages" -f /tmp/cmd-output -T 10
               fi
               exit $result
-        - *TEARDOWN_STEP
+        - *PACKET_CLEANUP_STEP
+        - *PACKET_FAILURE_STEP
         - *UPLOAD_ASSETS
-        - *CLEANUP_STEP
 jobs:
   load_gem:
     environment:
@@ -414,7 +408,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-      - *SETUP_STEP
+      - *PACKET_SETUP_STEP
       - run:
           name: Start packet guests
           command: |
@@ -445,8 +439,8 @@ jobs:
               slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 10
             fi
             exit $result
-      - *TEARDOWN_STEP
-      - *CLEANUP_STEP
+      - *PACKET_CLEANUP_STEP
+      - *PACKET_FAILURE_STEP
   start_package_guests:
     environment:
       <<: *ENVIRONMENT
@@ -455,7 +449,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-      - *SETUP_STEP
+      - *PACKET_SETUP_STEP
       - run:
           name: Restart packet guests
           no_output_timeout: 30m
@@ -500,24 +494,25 @@ jobs:
               slack -s error -m "Failed to start builder guests on packet device" -f /tmp/cmd-output -T 10
             fi
             exit $result
-      - *TEARDOWN_STEP
-      - *CLEANUP_STEP
+      - *PACKET_CLEANUP_STEP
+      - *PACKET_FAILURE_STEP
   secrets_and_cleaner:
     environment:
       <<: *ENVIRONMENT
     docker: *builder
     steps:
       - run:
-          name: Provide secrets
+          name: Provide secrets and cleanup
           command: |
             set +e
             echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
             chmod 600 "${PACKET_EXEC_SSH_KEY}"
-            unset PACKET_EXEC_PERSIST
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            packet-exec run -- "until [ -f .complete ]; do i=\$((i+1)); if [ \${i} -gt 120 ]; then i=0; echo -n '.'; fi; sleep 1; done"
+            packet-exec run -- "mkdir -p '/tmp/${CIRCLE_WORKFLOW_ID}'; while [ -d '/tmp/${CIRCLE_WORKFLOW_ID}' ]; do i=\$((i+1)); if [ \${i} -gt 120 ]; then i=0; echo -n '.'; fi; sleep 1; done"
+            unset PACKET_EXEC_PERSIST
+            packet-exec run -- vagrant destroy -f
   clean_guests:
     environment:
       <<: *ENVIRONMENT
@@ -525,7 +520,7 @@ jobs:
     steps:
       - run:
           name: Clean packet guests
-          command: *CLEANUP
+          command: *PACKET_FAILURE
   preapproval_notification:
     environment:
       <<: *ENVIRONMENT
@@ -543,7 +538,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-      - *SETUP_STEP
+      - *PACKET_SETUP_STEP
       - run:
           name: Sign packages
           no_output_timeout: 45m
@@ -576,9 +571,8 @@ jobs:
             packet-exec run -upload -download "./pkg/dist/*SHA256SUMS*:./assets" -- ./scripts/sign.sh ${VERSION}
             mv ./assets/* ../assets/
             ls -l ../assets
-      - *TEARDOWN_STEP
+      - *PACKET_CLEANUP_STEP
       - *UPLOAD_ASSETS
-      - *CLEANUP_STEP
   release_packages:
     environment:
       <<: *ENVIRONMENT
