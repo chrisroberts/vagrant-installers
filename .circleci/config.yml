@@ -47,11 +47,13 @@ reference:
     packet_failure: &PACKET_FAILURE |-
       echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
       chmod 600 "${PACKET_EXEC_SSH_KEY}"
+      export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
       unset PACKET_EXEC_PERSIST
       packet-exec run -- "touch '/tmp/${CIRCLE_WORKFLOW_ID}/.halt'"
     packet_cleanup: &PACKET_CLEANUP |-
       echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
       chmod 600 "${PACKET_EXEC_SSH_KEY}"
+      export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_BUILD_NUM}"
       unset PACKET_EXEC_PERSIST
       packet-exec run -- "rm -f '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'"
     packet_setup_step: &PACKET_SETUP_STEP
@@ -419,14 +421,14 @@ jobs:
               exit
             fi
             rm -rf ./substrate-assets ./assets
-            # ensure there are no stray guests still running on the system
-            packet-exec run -- pkill -f vmware-vmx
             # package type will start all available guests
             guests="${guests//$'\n'/,}"
             echo "Substrates to build: ${guests}"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_ONLY_BOXES="${guests}"
             export PKT_VAGRANT_BUILD_TYPE="substrate"
+            # ensure there are no stray guests still running on the system
+            packet-exec run -- pkill -f vmware-vmx
             packet-exec run -upload -- vagrant up --no-provision > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
@@ -470,6 +472,8 @@ jobs:
             # package type will start all available guests
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
             export PKT_VAGRANT_BUILD_TYPE="package"
+            # ensure there are no stray guests still running on the system
+            packet-exec run -- pkill -f vmware-vmx
             packet-exec run -upload -- vagrant destroy --force > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
