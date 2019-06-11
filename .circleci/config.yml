@@ -80,7 +80,7 @@ reference:
         command: |
           set +e
           sha=$(git rev-parse --short "${CIRCLE_SHA1}")
-          s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
+          s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
           mkdir -p substrate-assets
           pushd substrate-assets
           ls -lh
@@ -304,7 +304,7 @@ jobs:
           command: |
             set +e
             sha=$(git rev-parse --short "${CIRCLE_SHA1}")
-            s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
+            s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
             mkdir -p substrate-assets
             touch "./substrate-assets/stub-${CIRCLE_BUILD_NUM}"
             for name in $(aws s3 ls "${s3_dst}" | awk '{print $4}'); do
@@ -469,7 +469,7 @@ jobs:
             rm -rf ./assets
             echo "Loading any existing substrate assets..."
             sha=$(git rev-parse --short "${CIRCLE_SHA1}")
-            s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
+            s3_dst="${ASSETS_PRIVATE_LONGTERM}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${sha}/"
             aws s3 sync "${s3_dst}" ./substrate-assets/
             guests="${guests//$'\n'/,}"
             echo "Packages to build: ${guests}"
