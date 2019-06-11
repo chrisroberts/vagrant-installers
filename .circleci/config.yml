@@ -53,7 +53,7 @@ reference:
       echo -e -n "${PACKET_SSH_KEY}" > "${PACKET_EXEC_SSH_KEY}"
       chmod 600 "${PACKET_EXEC_SSH_KEY}"
       unset PACKET_EXEC_PERSIST
-      packet-exec run -- "rm -f '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); if [ \"${f}\" = \"/tmp/${CIRCLE_WORKFLOW_ID}/*\" ] && [ -f '/tmp/${CIRCLE_WORKFLOW_ID}/.halt' ]; then rm -rf '/tmp/${CIRCLE_WORKFLOW_ID}'; fi"
+      packet-exec run -- "rm -f '/tmp/${CIRCLE_WORKFLOW_ID}/${CIRCLE_BUILD_NUM}'"
     packet_setup_step: &PACKET_SETUP_STEP
       run:
         name: Setup packet guest usage
@@ -510,9 +510,9 @@ jobs:
             export PKT_VAGRANT_BUILD_TYPE="package"
             export PACKET_EXEC_PRE_BUILTINS="LoadSecrets"
             export PACKET_EXEC_REMOTE_DIRECTORY="${CIRCLE_WORKFLOW_ID}"
-            packet-exec run -- "mkdir -p '/tmp/${CIRCLE_WORKFLOW_ID}'; while [ -d '/tmp/${CIRCLE_WORKFLOW_ID}' ]; do i=\$((i+1)); if [ \${i} -gt 120 ]; then i=0; echo -n '.'; fi; sleep 1; done"
+            packet-exec run -- "shopt -s nullglob; mkdir -p '/tmp/${CIRCLE_WORKFLOW_ID}'; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); until [ -f '/tmp/${CIRCLE_WORKFLOW_ID}/.halt' ] && [ \"${#f[*]}\" -eq 0 ]; do i=\$((i+1)); if [ \${i} -gt 120 ]; then i=0; echo -n '.'; fi; sleep 1; f=(/tmp/${CIRCLE_WORKFLOW_ID}/*); done"
             unset PACKET_EXEC_PERSIST
-            packet-exec run -- vagrant destroy -f
+            packet-exec run -- "if [ -f Vagrantfile ]; then vagrant destroy -f; fi"
   clean_guests:
     environment:
       <<: *ENVIRONMENT
