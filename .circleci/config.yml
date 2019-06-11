@@ -391,6 +391,7 @@ jobs:
             if [ $? -eq 0 ]; then
               exit
             fi
+            unset PACKET_EXEC_SSH_KEY
             packet-exec create > /tmp/cmd-output 2>&1 &
             pid=$!
             until [ -f /tmp/cmd-output ]; do
