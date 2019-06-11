@@ -722,6 +722,9 @@ jobs:
           done
           popd
           aws s3 sync "${s3_dst}" ./assets/
+          echo "Asset list:"
+          ls -lh ./assets
+          echo "Start pre-release asset uploading..."
           export GITHUB_TOKEN="${HASHIBOT_TOKEN}"
           ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -prerelease -replace ${CIRCLE_TAG} ./assets/ > .output 2>&1
           result=$?
